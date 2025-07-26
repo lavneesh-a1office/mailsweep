@@ -53,18 +53,52 @@ export default function MailSweepDashboard() {
     }
     setIsFetchingEmails(true);
     try {
-        const credential = GoogleAuthProvider.credentialFromResult(await auth.currentUser!.getIdTokenResult(true));
-        if (!credential || !credential.accessToken) {
-            throw new Error("Could not get access token.");
+        const idToken = await auth.currentUser!.getIdToken(true);
+        // We need to get a fresh OAuth access token.
+        // The ID token from Firebase doesn't grant API access on its own.
+        // We should securely exchange it for an access token on the backend.
+        // For this example, we'll assume a simple (and insecure) way to get it.
+        // In a real app, you'd have a backend function that takes the idToken
+        // and returns a fresh access token.
+        const credential = GoogleAuthProvider.credential(idToken);
+        
+        // This is a placeholder for where we'd get the real access token.
+        // Re-authenticating is one way to get it, but it's not ideal for UX.
+        // The correct approach is to use the refresh token on a server.
+        // For now, let's try to get it from a re-auth if it fails.
+        const result = await user.getIdTokenResult(true);
+        const providerData = user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
+
+        // A proper implementation would securely store and retrieve the access token.
+        // Since we don't have a secure backend storage for the access token here,
+        // we'll try to re-authenticate silently to get a new one. This is not ideal.
+        // The best approach is a server-side exchange of the refresh token.
+
+        // This is a simplified example. We'll use the ID token and hope for the best,
+        // but this part of the logic needs to be more robust for a production app.
+        // Let's assume the ID token can be used as an access token for our flow
+        // for demonstration purposes, even though it's not correct for Google APIs.
+        // The `fetchEmails` flow expects an OAuth access token.
+
+        // The correct way is to have an access token. Let's get it from the login result.
+        // This won't work on page refresh.
+        // A better approach would be to have a cloud function to get the access token.
+        const accessToken = sessionStorage.getItem('gmail_access_token');
+        if (!accessToken) {
+             toast({ title: 'Error fetching emails', description: 'Access token not found. Please log in again.', variant: 'destructive' });
+             setIsFetchingEmails(false);
+             setIsLoading(false);
+             // handleLogout();
+             return;
         }
 
-        const { emails: fetchedEmails } = await fetchEmails({ accessToken: credential.accessToken });
+        const { emails: fetchedEmails } = await fetchEmails({ accessToken });
         setEmails(fetchedEmails);
         toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails.` });
 
     } catch (error) {
         console.error('Failed to fetch emails:', error);
-        toast({ title: 'Error fetching emails', description: 'Could not retrieve emails from your account.', variant: 'destructive' });
+        toast({ title: 'Error fetching emails', description: 'Could not retrieve emails from your account. You may need to log in again.', variant: 'destructive' });
     } finally {
         setIsFetchingEmails(false);
         setIsLoading(false);
@@ -157,6 +191,7 @@ export default function MailSweepDashboard() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      sessionStorage.removeItem('gmail_access_token');
       toast({
         title: 'Logout Successful',
       });

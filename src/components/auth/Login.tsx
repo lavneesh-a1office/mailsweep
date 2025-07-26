@@ -30,12 +30,11 @@ export default function Login() {
     provider.addScope('https://www.googleapis.com/auth/gmail.modify');
     try {
       const result = await signInWithPopup(auth, provider);
-      const additionalInfo = getAdditionalUserInfo(result);
       
-      // Store credential/token if needed, for example:
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
-        // You can use this token to make API calls to Google services
+        // Store the access token in session storage to use it across the app
+        sessionStorage.setItem('gmail_access_token', credential.accessToken);
       }
 
       toast({
@@ -56,6 +55,7 @@ export default function Login() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      sessionStorage.removeItem('gmail_access_token');
       toast({
         title: 'Logout Successful',
       });
