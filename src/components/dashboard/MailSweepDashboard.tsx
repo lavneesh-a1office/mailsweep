@@ -135,16 +135,19 @@ export default function MailSweepDashboard() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
-          handleFetchEmails();
+          if (categorizedEmails.length === 0) {
+            handleFetchEmails();
+          } else {
+            setIsLoading(false);
+          }
       } else {
         setIsLoading(false);
         router.push('/');
       }
     });
     return () => unsubscribe();
-    // Intentionally not including handleFetchEmails to run only once on auth change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, categorizedEmails.length]);
 
   const handleStartScan = async (emailsToScan: Email[]) => {
     const user = auth.currentUser;
@@ -206,14 +209,16 @@ export default function MailSweepDashboard() {
     } else if (ageFilter === '3y') {
       filterDate.setFullYear(now.getFullYear() - 3);
     } else if (ageFilter === 'all') {
-      filterDate = new Date(0);
-    } else {
-      return [];
+      filterDate = new Date(0); // Jan 1, 1970
     }
 
     const selectedCategoryNames = Object.entries(selectedCategories)
       .filter(([, isSelected]) => isSelected)
       .map(([category]) => category);
+
+    if (categorizedEmails.length === 0) {
+      return [];
+    }
 
     return categorizedEmails.filter(email => {
       const emailDate = new Date(email.date);
@@ -228,8 +233,12 @@ export default function MailSweepDashboard() {
         Promotions: 0, Social: 0, Updates: 0, Forums: 0, 
         Purchases: 0, Travel: 0, Other: 0 
     };
+    if (categorizedEmails.length === 0) return initialCounts;
+    
     return categorizedEmails.reduce((acc, email) => {
-      acc[email.category] = (acc[email.category] || 0) + 1;
+      if (email.category in acc) {
+        acc[email.category]++;
+      }
       return acc;
     }, initialCounts);
   }, [categorizedEmails]);
@@ -290,10 +299,10 @@ export default function MailSweepDashboard() {
         <MailSweepLogo className="h-16 w-16 text-primary mb-4" />
         <h1 className="text-3xl font-bold font-headline mb-2">Ready to clean your inbox?</h1>
         <p className="text-muted-foreground mb-6 max-w-md">
-            {`We found ${emails.length.toLocaleString()} emails. Start the AI-powered scan to categorize them.`}
+            {`We'll scan for emails to categorize. Click below to start.`}
         </p>
-        <Button size="lg" onClick={() => handleStartScan(emails)} disabled={emails.length === 0} className="bg-accent text-accent-foreground hover:bg-accent/90">
-          Scan My Inbox
+        <Button size="lg" onClick={() => handleFetchEmails(true)} disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
+          {isFetchingEmails ? 'Scanning...' : 'Scan My Inbox'}
         </Button>
         <Button variant="outline" onClick={handleLogout} className="mt-4">Logout</Button>
       </div>
@@ -410,5 +419,6 @@ function DashboardSkeleton() {
     </div>
   );
 }
+
 
 
