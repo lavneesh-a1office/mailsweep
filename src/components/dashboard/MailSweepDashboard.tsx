@@ -1,16 +1,17 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CategorizeEmailsInput, CategorizeEmailsOutput } from '@/ai/flows/categorize-emails';
 import { categorizeEmails } from '@/ai/flows/categorize-emails';
+import { fetchEmails } from '@/ai/flows/fetch-emails';
+import { GoogleAuthProvider } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MailSweepLogo } from '@/components/icons';
-import { getMockEmails } from '@/lib/mock-data';
 import type { Email } from '@/lib/types';
 import CategoryList from './CategoryList';
 import FilterControls from './FilterControls';
@@ -39,16 +40,40 @@ export default function MailSweepDashboard() {
   });
   const [ageFilter, setAgeFilter] = useState('1y');
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+  const [isFetchingEmails, setIsFetchingEmails] = useState(false);
 
   const { toast } = useToast();
   const router = useRouter();
 
+  const handleFetchEmails = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: 'Not authenticated', description: 'Please login to fetch emails.', variant: 'destructive' });
+        return;
+    }
+    setIsFetchingEmails(true);
+    try {
+        const credential = GoogleAuthProvider.credentialFromResult(await auth.currentUser!.getIdTokenResult(true));
+        if (!credential || !credential.accessToken) {
+            throw new Error("Could not get access token.");
+        }
+
+        const { emails: fetchedEmails } = await fetchEmails({ accessToken: credential.accessToken });
+        setEmails(fetchedEmails);
+        toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails.` });
+
+    } catch (error) {
+        console.error('Failed to fetch emails:', error);
+        toast({ title: 'Error fetching emails', description: 'Could not retrieve emails from your account.', variant: 'destructive' });
+    } finally {
+        setIsFetchingEmails(false);
+        setIsLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
-    // Simulate fetching emails
-    const fetchedEmails = getMockEmails();
-    setEmails(fetchedEmails);
-    setIsLoading(false);
-  }, []);
+    handleFetchEmails();
+  }, [handleFetchEmails]);
 
   const handleStartScan = async () => {
     if (emails.length === 0) return;
@@ -146,7 +171,7 @@ export default function MailSweepDashboard() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || isFetchingEmails) {
     return <DashboardSkeleton />;
   }
 

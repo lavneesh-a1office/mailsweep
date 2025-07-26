@@ -2,7 +2,7 @@
 'use client';
 
 import { auth } from '@/lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut, User } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut, User, getAdditionalUserInfo } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -29,10 +29,18 @@ export default function Login() {
     provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
     provider.addScope('https://www.googleapis.com/auth/gmail.modify');
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const additionalInfo = getAdditionalUserInfo(result);
+      
+      // Store credential/token if needed, for example:
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        // You can use this token to make API calls to Google services
+      }
+
       toast({
         title: 'Login Successful',
-        description: 'Welcome back!',
+        description: `Welcome back, ${result.user.displayName}!`,
       });
       router.push('/dashboard');
     } catch (error) {
@@ -52,7 +60,8 @@ export default function Login() {
         title: 'Logout Successful',
       });
       router.push('/');
-    } catch (error) {
+    } catch (error)
+      {
       console.error('Error during logout:', error);
       toast({
         title: 'Logout Failed',
