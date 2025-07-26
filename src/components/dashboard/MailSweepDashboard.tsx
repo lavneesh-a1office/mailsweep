@@ -297,7 +297,15 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   const totalEmailsCategorized = categorizedEmails.length;
 
   if (isLoading) {
-    return <DashboardSkeleton />;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
+        <MailSweepLogo className="h-16 w-16 text-primary animate-pulse" />
+        <h1 className="text-3xl font-bold font-headline mb-2">Scanning your inbox...</h1>
+        <p className="text-muted-foreground mb-6 max-w-md">
+            This may take a moment. We're looking for emails to categorize.
+        </p>
+      </div>
+    );
   }
   
   if (totalEmailsCategorized === 0 && !isCategorizing && !isFetchingEmails) {
@@ -401,23 +409,3 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     </div>
   );
 }
-
-function DashboardSkeleton() {
-  return (
-    <div className="container mx-auto py-8 px-4 animate-pulse">
-      <div className="space-y-8">
-        <Skeleton className="h-24 w-full rounded-lg" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 space-y-4">
-            <Skeleton className="h-64 w-full rounded-lg" />
-          </div>
-          <div className="lg:col-span-2 space-y-8">
-            <Skeleton className="h-32 w-full rounded-lg" />
-            <Skeleton className="h-48 w-full rounded-lg" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-

@@ -2,13 +2,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, deleteDoc } from 'firebase/firestore';
 import MailSweepDashboard from '@/components/dashboard/MailSweepDashboard';
 import { MailSweepLogo } from '@/components/icons';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarInset, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { LogOut, RotateCw, Scan, User as UserIcon } from 'lucide-react';
+import { LogOut, RotateCw, Scan, Trash2, User as UserIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
 
@@ -55,6 +56,29 @@ export default function DashboardLayout() {
     setRescanTrigger(prev => prev + 1);
   };
   
+  const handleClearCacheAndRescan = async () => {
+    if (!user) return;
+    setIsRescanning(true);
+    try {
+        const userDocRef = doc(db, 'userScans', user.uid);
+        await deleteDoc(userDocRef);
+        setCategorizedEmails([]);
+        toast({
+            title: 'Cache Cleared',
+            description: 'Starting a fresh scan of your inbox.',
+        });
+        setRescanTrigger(prev => prev + 1);
+    } catch (error) {
+        console.error('Failed to clear cache:', error);
+        toast({
+            title: 'Error',
+            description: 'Could not clear cache. Please try again.',
+            variant: 'destructive',
+        });
+        setIsRescanning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
@@ -86,10 +110,10 @@ export default function DashboardLayout() {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Account">
-                <UserIcon />
-                <span>Account</span>
-              </SidebarMenuButton>
+                <SidebarMenuButton onClick={handleClearCacheAndRescan} disabled={isRescanning} tooltip="Clear Cache & Rescan">
+                    <Trash2 />
+                    <span>Clear Cache</span>
+                </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
