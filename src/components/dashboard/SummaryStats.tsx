@@ -65,7 +65,7 @@ export default function SummaryStats({ emailsScanned, emailsToDelete }: SummaryS
                             {index < stats.length - 1 && (
                                 <Separator orientation="vertical" className="h-16 hidden md:block" />
                             )}
-                            {index < stats.length - 1 && (
+                             {index < stats.length - 1 && (
                                 <Separator orientation="horizontal" className="w-full my-2 md:hidden" />
                             )}
                         </React.Fragment>
