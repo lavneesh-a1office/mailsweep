@@ -336,14 +336,22 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-3 space-y-4">
             {nextPageToken && (
-              <Button 
-                className="w-full"
-                onClick={() => handleFetchEmails({ pageToken: nextPageToken })}
-                disabled={isFetchingEmails || isCategorizing}
-              >
-                <ScanSearch className="mr-2 h-4 w-4" />
-                {isFetchingEmails || isCategorizing ? 'Scanning...' : 'Scan More'}
-              </Button>
+              <Card>
+                <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-center sm:text-left">
+                      <h3 className="text-base font-semibold">Continue scanning your inbox</h3>
+                      <p className="text-sm text-muted-foreground">We scan 500 emails at a time. Click to scan more.</p>
+                  </div>
+                  <Button 
+                    className="w-full sm:w-auto"
+                    onClick={() => handleFetchEmails({ pageToken: nextPageToken })}
+                    disabled={isFetchingEmails || isCategorizing}
+                  >
+                    <ScanSearch className="mr-2 h-4 w-4" />
+                    {isFetchingEmails || isCategorizing ? 'Scanning...' : 'Scan More'}
+                  </Button>
+                </CardContent>
+              </Card>
             )}
             <CategoryList 
               categoryCounts={categoryCounts}
