@@ -110,7 +110,7 @@ export default function MailSweepDashboard() {
         setEmails(fetchedEmails);
         if (fetchedEmails.length > 0) {
             toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails to scan.` });
-            if (forceRescan) {
+            if (forceRescan || categorizedEmails.length === 0) {
                 await handleStartScan(fetchedEmails);
             }
         } else {
@@ -129,7 +129,7 @@ export default function MailSweepDashboard() {
         setIsFetchingEmails(false);
         setIsLoading(false);
     }
-  }, [toast, router, handleLogout, setCategorizedEmails]);
+  }, [toast, router, handleLogout, setCategorizedEmails, categorizedEmails.length]);
 
 
   useEffect(() => {
@@ -207,14 +207,17 @@ export default function MailSweepDashboard() {
       filterDate.setFullYear(now.getFullYear() - 3);
     } else if (ageFilter === 'all') {
       filterDate = new Date(0);
-    } else { // 'none'
-        return [];
+    } else {
+      return [];
     }
 
+    const selectedCategoryNames = Object.entries(selectedCategories)
+      .filter(([, isSelected]) => isSelected)
+      .map(([category]) => category);
 
     return categorizedEmails.filter(email => {
       const emailDate = new Date(email.date);
-      const isCategorySelected = selectedCategories[email.category];
+      const isCategorySelected = selectedCategoryNames.includes(email.category);
       const isOldEnough = emailDate < filterDate;
       return isCategorySelected && isOldEnough;
     });
@@ -407,4 +410,5 @@ function DashboardSkeleton() {
     </div>
   );
 }
+
 

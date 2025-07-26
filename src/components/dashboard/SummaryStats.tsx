@@ -1,8 +1,8 @@
 
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScanLine, Trash, HardDrive, CircleHelp } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ScanLine, Trash, HardDrive, CircleHelp, Separator } from "lucide-react";
 
 interface SummaryStatsProps {
     emailsScanned: number;
@@ -21,9 +21,7 @@ function formatBytes(bytes: number, decimals = 2) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-
 export default function SummaryStats({ emailsScanned, emailsToDelete }: SummaryStatsProps) {
-
     const spaceToFree = formatBytes(emailsToDelete * AVG_EMAIL_SIZE_BYTES);
 
     const stats = [
@@ -31,25 +29,21 @@ export default function SummaryStats({ emailsScanned, emailsToDelete }: SummaryS
             title: "Emails Scanned",
             value: emailsScanned.toLocaleString(),
             icon: ScanLine,
-            description: "Total emails analyzed in your inbox."
         },
         {
             title: "Ready to Delete",
             value: emailsToDelete.toLocaleString(),
             icon: Trash,
-            description: "Emails matching your current filter selection."
         },
         {
             title: "Space to be Freed",
             value: spaceToFree,
             icon: HardDrive,
-            description: "Estimated space you'll reclaim."
         },
         {
             title: "Total Inbox Size",
             value: "N/A",
             icon: CircleHelp,
-            description: "Gmail API does not provide this information directly."
         }
     ];
 
@@ -57,20 +51,24 @@ export default function SummaryStats({ emailsScanned, emailsToDelete }: SummaryS
         <Card className="shadow-lg bg-card">
             <CardHeader>
                 <CardTitle>Scan Summary</CardTitle>
+                <CardDescription>A quick overview of your inbox analysis.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {stats.map(stat => (
-                        <Card key={stat.title} className="bg-background/50">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                                <stat.icon className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-primary">{stat.value}</div>
-                                <p className="text-xs text-muted-foreground pt-1">{stat.description}</p>
-                            </CardContent>
-                        </Card>
+                <div className="flex flex-col md:flex-row justify-around items-center text-center">
+                    {stats.map((stat, index) => (
+                        <React.Fragment key={stat.title}>
+                            <div className="flex flex-col items-center p-4 w-full">
+                                <stat.icon className="h-6 w-6 text-muted-foreground mb-2" />
+                                <p className="text-2xl font-bold text-primary">{stat.value}</p>
+                                <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                            </div>
+                            {index < stats.length - 1 && (
+                                <Separator orientation="vertical" className="h-16 hidden md:block" />
+                            )}
+                            {index < stats.length - 1 && (
+                                <Separator orientation="horizontal" className="w-full my-2 md:hidden" />
+                            )}
+                        </React.Fragment>
                     ))}
                 </div>
             </CardContent>
