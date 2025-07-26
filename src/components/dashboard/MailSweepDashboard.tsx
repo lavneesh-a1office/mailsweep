@@ -20,6 +20,7 @@ import { Trash2 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
 
 export type Category = CategorizeEmailsOutput['categories'][number];
 export interface CategorizedEmail extends Email {
@@ -28,7 +29,7 @@ export interface CategorizedEmail extends Email {
 
 export default function MailSweepDashboard() {
   const [emails, setEmails] = useState<Email[]>([]);
-  const [categorizedEmailsList, setCategorizedEmailsList] = useState<CategorizedEmail[]>([]);
+  const { categorizedEmails, setCategorizedEmails } = useCategorizedEmails();
   const [isLoading, setIsLoading] = useState(true);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -70,7 +71,7 @@ export default function MailSweepDashboard() {
         ...email,
         category: result.categories[index],
       }));
-      setCategorizedEmailsList(categorized);
+      setCategorizedEmails(categorized);
 
     } catch (error) {
       console.error('Categorization failed:', error);
@@ -97,20 +98,20 @@ export default function MailSweepDashboard() {
       filterDate = new Date(0);
     }
 
-    return categorizedEmailsList.filter(email => {
+    return categorizedEmails.filter(email => {
       const emailDate = new Date(email.date);
       const isCategorySelected = selectedCategories[email.category];
       const isOldEnough = emailDate < filterDate;
       return isCategorySelected && isOldEnough;
     });
-  }, [categorizedEmailsList, selectedCategories, ageFilter]);
+  }, [categorizedEmails, selectedCategories, ageFilter]);
   
   const categoryCounts = useMemo(() => {
-    return categorizedEmailsList.reduce((acc, email) => {
+    return categorizedEmails.reduce((acc, email) => {
       acc[email.category] = (acc[email.category] || 0) + 1;
       return acc;
     }, {} as Record<Category, number>);
-  }, [categorizedEmailsList]);
+  }, [categorizedEmails]);
 
   const handleDelete = () => {
     // In a real app, this would call the Gmail API to delete `filteredEmails`
@@ -119,8 +120,8 @@ export default function MailSweepDashboard() {
 
     // Filter out the "deleted" emails from the main list
     const deletedIds = new Set(filteredEmails.map(e => e.id));
-    const remainingEmails = categorizedEmailsList.filter(email => !deletedIds.has(email.id));
-    setCategorizedEmailsList(remainingEmails);
+    const remainingEmails = categorizedEmails.filter(email => !deletedIds.has(email.id));
+    setCategorizedEmails(remainingEmails);
 
     toast({
       title: "Success!",
@@ -149,7 +150,7 @@ export default function MailSweepDashboard() {
     return <DashboardSkeleton />;
   }
 
-  if (categorizedEmailsList.length === 0 && !isCategorizing) {
+  if (categorizedEmails.length === 0 && !isCategorizing) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4" />
