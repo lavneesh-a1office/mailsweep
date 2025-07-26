@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CategorizeEmailsInput, CategorizeEmailsOutput } from '@/ai/flows/categorize-emails';
 import { categorizeEmails } from '@/ai/flows/categorize-emails';
 import { fetchEmails } from '@/ai/flows/fetch-emails';
+import { deleteEmails } from '@/ai/flows/delete-emails';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +33,7 @@ export default function MailSweepDashboard() {
   const { categorizedEmails, setCategorizedEmails } = useCategorizedEmails();
   const [isLoading, setIsLoading] = useState(true);
   const [isCategorizing, setIsCategorizing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<Record<Category, boolean>>({
     Promotions: true, Social: true, Updates: true, Forums: true, 
@@ -111,14 +113,19 @@ export default function MailSweepDashboard() {
     // onAuthStateChanged is the recommended way to get the current user
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
-        handleFetchEmails();
+        // If we have emails already, don't refetch
+        if (categorizedEmails.length === 0) {
+            handleFetchEmails();
+        } else {
+            setIsLoading(false);
+        }
       } else {
         setIsLoading(false);
         router.push('/');
       }
     });
     return () => unsubscribe();
-  }, [handleFetchEmails, router]);
+  }, [handleFetchEmails, router, categorizedEmails.length]);
 
   const handleStartScan = async () => {
     if (emails.length === 0) {
@@ -199,18 +206,44 @@ export default function MailSweepDashboard() {
     }, initialCounts);
   }, [categorizedEmails]);
 
-  const handleDelete = () => {
-    console.log(`Deleting ${filteredEmails.length} emails...`);
+  const handleDelete = async () => {
     setIsConfirmationOpen(false);
+    if (filteredEmails.length === 0) return;
+    setIsDeleting(true);
 
-    const deletedIds = new Set(filteredEmails.map(e => e.id));
-    const remainingEmails = categorizedEmails.filter(email => !deletedIds.has(email.id));
-    setCategorizedEmails(remainingEmails);
+    const accessToken = sessionStorage.getItem('gmail_access_token');
+    if (!accessToken) {
+        toast({ title: 'Authentication Error', description: 'Access token not found. Please log in again.', variant: 'destructive' });
+        await handleLogout();
+        setIsDeleting(false);
+        return;
+    }
 
-    toast({
-      title: "Success!",
-      description: `${filteredEmails.length.toLocaleString()} emails have been deleted.`,
-    });
+    const emailIds = filteredEmails.map(e => e.id);
+
+    try {
+        await deleteEmails({ accessToken, emailIds });
+        
+        const deletedIds = new Set(emailIds);
+        const remainingEmails = categorizedEmails.filter(email => !deletedIds.has(email.id));
+        setCategorizedEmails(remainingEmails);
+
+        toast({
+            title: "Success!",
+            description: `${emailIds.length.toLocaleString()} emails have been moved to trash.`,
+        });
+
+    } catch (error) {
+        console.error('Failed to delete emails:', error);
+        toast({ 
+            title: 'Error Deleting Emails', 
+            description: 'Could not delete emails. Your session might have expired. Please log in again.', 
+            variant: 'destructive' 
+        });
+        await handleLogout();
+    } finally {
+        setIsDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -219,7 +252,7 @@ export default function MailSweepDashboard() {
   
   const totalEmailsCategorized = categorizedEmails.length;
 
-  if (totalEmailsCategorized === 0 && !isCategorizing) {
+  if (totalEmailsCategorized === 0 && !isCategorizing && !isFetchingEmails) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4" />
@@ -235,13 +268,13 @@ export default function MailSweepDashboard() {
     );
   }
 
-  if (isCategorizing) {
+  if (isCategorizing || isFetchingEmails) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4 animate-pulse" />
-        <h1 className="text-3xl font-bold font-headline mb-2">Categorizing your emails...</h1>
+        <h1 className="text-3xl font-bold font-headline mb-2">{isFetchingEmails ? 'Fetching emails...' : 'Categorizing your emails...'}</h1>
         <p className="text-muted-foreground mb-6">Our AI is working its magic. This may take a moment.</p>
-        <Progress value={progress} className="w-full max-w-md" />
+        <Progress value={isFetchingEmails ? undefined : progress} className="w-full max-w-md" />
       </div>
     );
   }
@@ -256,7 +289,9 @@ export default function MailSweepDashboard() {
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground hidden sm:block">{auth.currentUser?.email}</p>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
-          <Button variant="outline" onClick={handleFetchEmails}>Rescan</Button>
+          <Button variant="outline" onClick={handleFetchEmails} disabled={isFetchingEmails}>
+            {isFetchingEmails ? 'Rescanning...': 'Rescan'}
+          </Button>
         </div>
       </header>
       
@@ -283,16 +318,16 @@ export default function MailSweepDashboard() {
                   <span>{filteredEmails.length.toLocaleString()}</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  This action will permanently delete emails from your account. This cannot be undone.
+                  This action will move emails to trash in your Gmail account. This can be undone in Gmail.
                 </p>
                 <Button 
                   size="lg" 
                   className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  disabled={filteredEmails.length === 0}
+                  disabled={filteredEmails.length === 0 || isDeleting}
                   onClick={() => setIsConfirmationOpen(true)}
                 >
                   <Trash2 className="mr-2 h-5 w-5" />
-                  Delete {filteredEmails.length.toLocaleString()} Emails
+                  {isDeleting ? 'Deleting...' : `Delete ${filteredEmails.length.toLocaleString()} Emails`}
                 </Button>
               </div>
             </CardContent>
@@ -317,7 +352,10 @@ function DashboardSkeleton() {
           <Skeleton className="h-10 w-10 rounded-lg" />
           <Skeleton className="h-8 w-48 rounded-md" />
         </div>
-        <Skeleton className="h-10 w-32 rounded-md" />
+        <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-32 rounded-md" />
+            <Skeleton className="h-10 w-24 rounded-md" />
+        </div>
       </header>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-4">

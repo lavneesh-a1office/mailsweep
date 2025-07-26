@@ -31,9 +31,9 @@ export default function DeleteConfirmationDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete{' '}
+            This action will move{' '}
             <span className="font-bold text-destructive">{emailCount.toLocaleString()}</span> email(s)
-            from your account.
+            to the trash in your Gmail account. You can recover them from the trash later.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -42,7 +42,7 @@ export default function DeleteConfirmationDialog({
           </AlertDialogCancel>
           <AlertDialogAction asChild>
             <Button onClick={onConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, delete them
+              Yes, move to trash
             </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
