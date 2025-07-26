@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -71,7 +72,7 @@ export default function CategoryList({ categoryCounts, selectedCategories, onCat
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={isSelected ? "default" : "secondary"} className={`w-16 justify-center ${isSelected ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'}`}>{count.toLocaleString()}</Badge>
-                <Link href={`/dashboard/preview/${category}`} passHref>
+                <Link href={`/dashboard/preview/${category}`} passHref legacyBehavior>
                   <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                     <a>
                       <Eye className="h-4 w-4" />
