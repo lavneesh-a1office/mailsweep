@@ -5,7 +5,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CategorizeEmailsInput, CategorizeEmailsOutput } from '@/ai/flows/categorize-emails';
 import { categorizeEmails } from '@/ai/flows/categorize-emails';
 import { fetchEmails } from '@/ai/flows/fetch-emails';
-import { GoogleAuthProvider } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,75 +48,73 @@ export default function MailSweepDashboard() {
     const user = auth.currentUser;
     if (!user) {
         toast({ title: 'Not authenticated', description: 'Please login to fetch emails.', variant: 'destructive' });
+        // Redirect to login if not authenticated
+        router.push('/');
         return;
     }
+
     setIsFetchingEmails(true);
+    setIsLoading(true);
+
     try {
-        const idToken = await auth.currentUser!.getIdToken(true);
-        // We need to get a fresh OAuth access token.
-        // The ID token from Firebase doesn't grant API access on its own.
-        // We should securely exchange it for an access token on the backend.
-        // For this example, we'll assume a simple (and insecure) way to get it.
-        // In a real app, you'd have a backend function that takes the idToken
-        // and returns a fresh access token.
-        const credential = GoogleAuthProvider.credential(idToken);
-        
-        // This is a placeholder for where we'd get the real access token.
-        // Re-authenticating is one way to get it, but it's not ideal for UX.
-        // The correct approach is to use the refresh token on a server.
-        // For now, let's try to get it from a re-auth if it fails.
-        const result = await user.getIdTokenResult(true);
-        const providerData = user.providerData.find(p => p.providerId === GoogleAuthProvider.PROVIDER_ID);
-
-        // A proper implementation would securely store and retrieve the access token.
-        // Since we don't have a secure backend storage for the access token here,
-        // we'll try to re-authenticate silently to get a new one. This is not ideal.
-        // The best approach is a server-side exchange of the refresh token.
-
-        // This is a simplified example. We'll use the ID token and hope for the best,
-        // but this part of the logic needs to be more robust for a production app.
-        // Let's assume the ID token can be used as an access token for our flow
-        // for demonstration purposes, even though it's not correct for Google APIs.
-        // The `fetchEmails` flow expects an OAuth access token.
-
-        // The correct way is to have an access token. Let's get it from the login result.
-        // This won't work on page refresh.
-        // A better approach would be to have a cloud function to get the access token.
         const accessToken = sessionStorage.getItem('gmail_access_token');
         if (!accessToken) {
-             toast({ title: 'Error fetching emails', description: 'Access token not found. Please log in again.', variant: 'destructive' });
-             setIsFetchingEmails(false);
-             setIsLoading(false);
-             // handleLogout();
+             toast({ title: 'Authentication Error', description: 'Access token not found. Please log in again to grant permission.', variant: 'destructive' });
+             await handleLogout(); // Log out the user if token is missing
              return;
         }
 
         const { emails: fetchedEmails } = await fetchEmails({ accessToken });
         setEmails(fetchedEmails);
-        toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails.` });
-
+        if (fetchedEmails.length > 0) {
+            toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails to scan.` });
+        } else {
+            toast({ title: 'No Emails Found', description: `We couldn't find any emails in the last scan.` });
+        }
+        
     } catch (error) {
         console.error('Failed to fetch emails:', error);
-        toast({ title: 'Error fetching emails', description: 'Could not retrieve emails from your account. You may need to log in again.', variant: 'destructive' });
+        toast({ 
+            title: 'Error Fetching Emails', 
+            description: 'Could not retrieve emails. Your session might have expired. Please log in again.', 
+            variant: 'destructive' 
+        });
+        // If there's an error (like expired token), log the user out
+        await handleLogout();
     } finally {
         setIsFetchingEmails(false);
         setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, router]);
 
   useEffect(() => {
-    handleFetchEmails();
-  }, [handleFetchEmails]);
+    // onAuthStateChanged is the recommended way to get the current user
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        handleFetchEmails();
+      } else {
+        setIsLoading(false);
+        router.push('/');
+      }
+    });
+    return () => unsubscribe();
+  }, [handleFetchEmails, router]);
 
   const handleStartScan = async () => {
-    if (emails.length === 0) return;
+    if (emails.length === 0) {
+        toast({
+            title: "No Emails to Scan",
+            description: "We didn't find any emails in your inbox to scan.",
+            variant: "default",
+        });
+        return;
+    };
     setIsCategorizing(true);
     setProgress(0);
 
     const emailInput: CategorizeEmailsInput = { emails: emails.map(({ subject, sender, body }) => ({ subject, sender, body })) };
 
     try {
-      // Simulate progress for AI categorization
       const progressInterval = setInterval(() => {
         setProgress(prev => (prev < 90 ? prev + 10 : prev));
       }, 300);
@@ -131,6 +128,10 @@ export default function MailSweepDashboard() {
         category: result.categories[index],
       }));
       setCategorizedEmails(categorized);
+      toast({
+          title: "Scan Complete!",
+          description: `Successfully categorized ${categorized.length} emails.`,
+      });
 
     } catch (error) {
       console.error('Categorization failed:', error);
@@ -153,9 +154,11 @@ export default function MailSweepDashboard() {
     } else if (ageFilter === '3y') {
       filterDate.setFullYear(now.getFullYear() - 3);
     } else if (ageFilter === 'all') {
-      // A very old date to include all emails
       filterDate = new Date(0);
+    } else { // 'none'
+        return [];
     }
+
 
     return categorizedEmails.filter(email => {
       const emailDate = new Date(email.date);
@@ -166,18 +169,20 @@ export default function MailSweepDashboard() {
   }, [categorizedEmails, selectedCategories, ageFilter]);
   
   const categoryCounts = useMemo(() => {
+    const initialCounts: Record<Category, number> = { 
+        Promotions: 0, Social: 0, Updates: 0, Forums: 0, 
+        Purchases: 0, Travel: 0, Other: 0 
+    };
     return categorizedEmails.reduce((acc, email) => {
       acc[email.category] = (acc[email.category] || 0) + 1;
       return acc;
-    }, {} as Record<Category, number>);
+    }, initialCounts);
   }, [categorizedEmails]);
 
   const handleDelete = () => {
-    // In a real app, this would call the Gmail API to delete `filteredEmails`
     console.log(`Deleting ${filteredEmails.length} emails...`);
     setIsConfirmationOpen(false);
 
-    // Filter out the "deleted" emails from the main list
     const deletedIds = new Set(filteredEmails.map(e => e.id));
     const remainingEmails = categorizedEmails.filter(email => !deletedIds.has(email.id));
     setCategorizedEmails(remainingEmails);
@@ -192,6 +197,8 @@ export default function MailSweepDashboard() {
     try {
       await signOut(auth);
       sessionStorage.removeItem('gmail_access_token');
+      setCategorizedEmails([]);
+      setEmails([]);
       toast({
         title: 'Logout Successful',
       });
@@ -206,26 +213,31 @@ export default function MailSweepDashboard() {
     }
   };
 
-  if (isLoading || isFetchingEmails) {
+  if (isLoading) {
     return <DashboardSkeleton />;
   }
+  
+  const totalEmailsCategorized = categorizedEmails.length;
 
-  if (categorizedEmails.length === 0 && !isCategorizing) {
+  if (totalEmailsCategorized === 0 && !isCategorizing) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4" />
         <h1 className="text-3xl font-bold font-headline mb-2">Ready to clean your inbox?</h1>
-        <p className="text-muted-foreground mb-6 max-w-md">We found {emails.length.toLocaleString()} emails. Start the AI-powered scan to categorize them and find what to delete.</p>
-        <Button size="lg" onClick={handleStartScan} className="bg-accent text-accent-foreground hover:bg-accent/90">
-          Scan My Inbox
+        <p className="text-muted-foreground mb-6 max-w-md">
+            {isFetchingEmails ? 'Fetching your emails...' : `We found ${emails.length.toLocaleString()} emails. Start the AI-powered scan to categorize them.`}
+        </p>
+        <Button size="lg" onClick={handleStartScan} disabled={isFetchingEmails || emails.length === 0} className="bg-accent text-accent-foreground hover:bg-accent/90">
+          {isFetchingEmails ? 'Fetching Emails...' : 'Scan My Inbox'}
         </Button>
+        <Button variant="outline" onClick={handleLogout} className="mt-4">Logout</Button>
       </div>
     );
   }
 
   if (isCategorizing) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4 animate-pulse" />
         <h1 className="text-3xl font-bold font-headline mb-2">Categorizing your emails...</h1>
         <p className="text-muted-foreground mb-6">Our AI is working its magic. This may take a moment.</p>
@@ -244,7 +256,7 @@ export default function MailSweepDashboard() {
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground hidden sm:block">{auth.currentUser?.email}</p>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
-          <Button variant="outline" onClick={handleStartScan}>Rescan</Button>
+          <Button variant="outline" onClick={handleFetchEmails}>Rescan</Button>
         </div>
       </header>
       
