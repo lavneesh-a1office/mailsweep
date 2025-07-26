@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
@@ -30,7 +31,7 @@ export default function CategoryPreviewPage() {
       <header className="flex items-center mb-8 gap-4">
         <Link href="/dashboard" passHref>
           <Button variant="outline" size="icon" asChild>
-            <a><ArrowLeft className="h-4 w-4" /></a>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
