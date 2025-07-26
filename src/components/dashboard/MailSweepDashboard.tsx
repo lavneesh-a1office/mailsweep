@@ -90,6 +90,7 @@ export default function MailSweepDashboard() {
     }
 
     return categorizedEmails.filter(email => {
+      if (!email || !email.date || !email.category) return false;
       const emailDate = new Date(email.date);
       const isCategorySelected = selectedCategoryNames.includes(email.category);
       const isOldEnough = emailDate < filterDate;
@@ -108,7 +109,6 @@ export default function MailSweepDashboard() {
     setIsFetchingEmails(true);
     setIsLoading(true);
 
-    // 1. Check Firestore first
     if (!forceRescan) {
         const userDocRef = doc(db, 'userScans', user.uid);
         const docSnap = await getDoc(userDocRef);
@@ -119,13 +119,11 @@ export default function MailSweepDashboard() {
                 toast({ title: 'Success', description: 'Loaded cached scan results.' });
                 setIsFetchingEmails(false);
                 setIsLoading(false);
-                return; // We have data, no need to fetch from Gmail
+                return;
             }
         }
     }
 
-
-    // 2. If no data in Firestore or forcing rescan, fetch from Gmail
     try {
         const accessToken = sessionStorage.getItem('gmail_access_token');
         if (!accessToken) {
@@ -138,9 +136,8 @@ export default function MailSweepDashboard() {
         setEmails(fetchedEmails);
         if (fetchedEmails.length > 0) {
             toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails to scan.` });
-            if (forceRescan || categorizedEmails.length === 0) {
-                await handleStartScan(fetchedEmails);
-            }
+            await handleStartScan(fetchedEmails);
+            
         } else {
             toast({ title: 'No Emails Found', description: `We couldn't find any emails in the last scan.` });
         }
@@ -157,7 +154,7 @@ export default function MailSweepDashboard() {
         setIsFetchingEmails(false);
         setIsLoading(false);
     }
-  }, [toast, router, handleLogout, setCategorizedEmails, categorizedEmails.length]);
+  }, [toast, router, handleLogout, setCategorizedEmails]);
 
 
   useEffect(() => {
@@ -207,7 +204,6 @@ export default function MailSweepDashboard() {
       }));
       setCategorizedEmails(categorized);
       
-      // Save to Firestore
       const userDocRef = doc(db, 'userScans', user.uid);
       await setDoc(userDocRef, { categorizedEmails: categorized, updatedAt: new Date() });
 
@@ -265,7 +261,6 @@ export default function MailSweepDashboard() {
         const remainingEmails = categorizedEmails.filter(email => !deletedIds.has(email.id));
         setCategorizedEmails(remainingEmails);
 
-        // Update Firestore with the remaining emails
         const userDocRef = doc(db, 'userScans', auth.currentUser.uid);
         await setDoc(userDocRef, { categorizedEmails: remainingEmails, updatedAt: new Date() }, { merge: true });
 
@@ -286,34 +281,13 @@ export default function MailSweepDashboard() {
         setIsDeleting(false);
     }
   };
-
-  useEffect(() => {
-    // This effect ensures that a user is logged in to see this page.
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      if (!user) {
-        router.push('/');
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
   
-  useEffect(() => {
-      // This effect triggers the initial email fetch if no categorized emails are present.
-      if (auth.currentUser && categorizedEmails.length === 0) {
-        handleFetchEmails();
-      } else if(categorizedEmails.length > 0) {
-        setIsLoading(false);
-      }
-  // This dependency array is intentionally sparse to only run once on mount if needed.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.currentUser]);
+  const totalEmailsCategorized = categorizedEmails.length;
 
   if (isLoading) {
     return <DashboardSkeleton />;
   }
   
-  const totalEmailsCategorized = categorizedEmails.length;
-
   if (totalEmailsCategorized === 0 && !isCategorizing && !isFetchingEmails) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
@@ -440,9 +414,3 @@ function DashboardSkeleton() {
     </div>
   );
 }
-
-    
-
-    
-
-    
