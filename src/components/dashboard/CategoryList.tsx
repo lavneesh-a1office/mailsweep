@@ -74,10 +74,10 @@ export default function CategoryList({ categoryCounts, selectedCategories, onCat
                 <Badge variant={isSelected ? "default" : "secondary"} className={`w-16 justify-center ${isSelected ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'}`}>{count.toLocaleString()}</Badge>
                 <Link href={`/dashboard/preview/${category}`} passHref>
                   <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                    <a>
+                    <span>
                       <Eye className="h-4 w-4" />
                       <span className="sr-only">Preview {category}</span>
-                    </a>
+                    </span>
                   </Button>
                 </Link>
               </div>
