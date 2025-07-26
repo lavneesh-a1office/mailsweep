@@ -23,6 +23,8 @@ import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
+import SummaryStats from './SummaryStats';
+
 
 export type Category = CategorizeEmailsOutput['categories'][number];
 export interface CategorizedEmail extends Email {
@@ -322,43 +324,49 @@ export default function MailSweepDashboard() {
         </div>
       </header>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
-          <CategoryList 
-            categoryCounts={categoryCounts}
-            selectedCategories={selectedCategories}
-            onCategoryChange={setSelectedCategories}
-          />
-        </div>
-        <div className="lg:col-span-2 space-y-8">
-          <FilterControls ageFilter={ageFilter} onAgeFilterChange={setAgeFilter} />
-          
-          <Card className="shadow-lg bg-card">
-            <CardHeader>
-              <CardTitle>Bulk Deletion Summary</CardTitle>
-              <CardDescription>Review the emails that will be deleted based on your selections.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-2xl font-bold text-primary">
-                  <span>Emails to delete:</span>
-                  <span>{filteredEmails.length.toLocaleString()}</span>
+      <div className="space-y-8">
+        <SummaryStats
+            emailsScanned={totalEmailsCategorized}
+            emailsToDelete={filteredEmails.length}
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1">
+            <CategoryList 
+              categoryCounts={categoryCounts}
+              selectedCategories={selectedCategories}
+              onCategoryChange={setSelectedCategories}
+            />
+          </div>
+          <div className="lg:col-span-2 space-y-8">
+            <FilterControls ageFilter={ageFilter} onAgeFilterChange={setAgeFilter} />
+            
+            <Card className="shadow-lg bg-card">
+              <CardHeader>
+                <CardTitle>Bulk Deletion Summary</CardTitle>
+                <CardDescription>Review the emails that will be deleted based on your selections.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-2xl font-bold text-primary">
+                    <span>Emails to delete:</span>
+                    <span>{filteredEmails.length.toLocaleString()}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    This action will move emails to trash in your Gmail account. This can be undone in Gmail.
+                  </p>
+                  <Button 
+                    size="lg" 
+                    className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={filteredEmails.length === 0 || isDeleting}
+                    onClick={() => setIsConfirmationOpen(true)}
+                  >
+                    <Trash2 className="mr-2 h-5 w-5" />
+                    {isDeleting ? 'Deleting...' : `Delete ${filteredEmails.length.toLocaleString()} Emails`}
+                  </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  This action will move emails to trash in your Gmail account. This can be undone in Gmail.
-                </p>
-                <Button 
-                  size="lg" 
-                  className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  disabled={filteredEmails.length === 0 || isDeleting}
-                  onClick={() => setIsConfirmationOpen(true)}
-                >
-                  <Trash2 className="mr-2 h-5 w-5" />
-                  {isDeleting ? 'Deleting...' : `Delete ${filteredEmails.length.toLocaleString()} Emails`}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
       <DeleteConfirmationDialog 
@@ -384,15 +392,19 @@ function DashboardSkeleton() {
             <Skeleton className="h-10 w-24 rounded-md" />
         </div>
       </header>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 space-y-4">
-          <Skeleton className="h-64 w-full rounded-lg" />
-        </div>
-        <div className="lg:col-span-2 space-y-8">
-          <Skeleton className="h-32 w-full rounded-lg" />
-          <Skeleton className="h-48 w-full rounded-lg" />
+      <div className="space-y-8">
+        <Skeleton className="h-24 w-full rounded-lg" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-1 space-y-4">
+            <Skeleton className="h-64 w-full rounded-lg" />
+          </div>
+          <div className="lg:col-span-2 space-y-8">
+            <Skeleton className="h-32 w-full rounded-lg" />
+            <Skeleton className="h-48 w-full rounded-lg" />
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
