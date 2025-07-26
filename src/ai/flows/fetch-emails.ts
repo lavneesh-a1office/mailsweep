@@ -11,7 +11,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { Email } from '@/lib/types';
-import { defineFlow } from 'genkit';
 
 const FetchEmailsInputSchema = z.object({
   accessToken: z.string().describe('The Google API access token.'),
@@ -64,7 +63,7 @@ async function getEmailDetails(messageId: string, accessToken: string): Promise<
 }
 
 
-const fetchEmailsFlow = defineFlow(
+const fetchEmailsFlow = ai.defineFlow(
   {
     name: 'fetchEmailsFlow',
     inputSchema: FetchEmailsInputSchema,
