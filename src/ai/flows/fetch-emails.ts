@@ -71,7 +71,7 @@ const fetchEmailsFlow = ai.defineFlow(
   },
   async ({ accessToken }) => {
     
-    const listResponse = await fetch('https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=100', {
+    const listResponse = await fetch('https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=500', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
