@@ -339,7 +339,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
               <Card>
                 <CardContent className="p-4 flex items-center justify-between gap-4">
                   <div className="flex-grow">
-                    <h3 className="font-semibold text-sm">Continue scanning your inbox</h3>
+                    <h3 className="font-semibold text-sm">Scan more emails</h3>
                     <p className="text-xs text-muted-foreground">We scan 500 at a time. Click to scan for more.</p>
                   </div>
                   <Button
