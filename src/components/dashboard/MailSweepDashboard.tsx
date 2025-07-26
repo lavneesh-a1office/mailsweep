@@ -147,7 +147,7 @@ export default function MailSweepDashboard() {
     });
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, categorizedEmails.length]);
+  }, [router]);
 
   const handleStartScan = async (emailsToScan: Email[]) => {
     const user = auth.currentUser;
@@ -287,6 +287,27 @@ export default function MailSweepDashboard() {
     }
   };
 
+  useEffect(() => {
+    // This effect ensures that a user is logged in to see this page.
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (!user) {
+        router.push('/');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+  
+  useEffect(() => {
+      // This effect triggers the initial email fetch if no categorized emails are present.
+      if (categorizedEmails.length === 0) {
+        handleFetchEmails();
+      } else {
+        setIsLoading(false);
+      }
+  // This dependency array is intentionally sparse to only run once on mount if needed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (isLoading) {
     return <DashboardSkeleton />;
   }
@@ -420,6 +441,4 @@ function DashboardSkeleton() {
   );
 }
 
-
-
-
+    
