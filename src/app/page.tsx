@@ -1,3 +1,9 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { Card, CardContent } from "@/components/ui/card";
 import { MailSweepLogo } from "@/components/icons";
 import { CheckCircle2 } from "lucide-react";
@@ -5,6 +11,24 @@ import Image from "next/image";
 import Login from "@/components/auth/Login";
 
 export default function Home() {
+  const [user, loading] = useAuthState(auth);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      router.push('/dashboard');
+    }
+  }, [user, router]);
+
+  if (loading || user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
+        <MailSweepLogo className="h-16 w-16 text-primary animate-pulse" />
+        <h1 className="text-2xl font-bold font-headline mt-4">Loading...</h1>
+      </div>
+    );
+  }
+  
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="p-4 flex justify-between items-center container mx-auto">
