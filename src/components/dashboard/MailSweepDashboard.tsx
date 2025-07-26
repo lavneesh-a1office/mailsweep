@@ -337,13 +337,14 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
           <div className="md:col-span-3 space-y-4">
             {nextPageToken && (
               <Card>
-                <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-center sm:text-left flex-grow">
-                    <h3 className="text-base font-semibold">Continue scanning your inbox</h3>
-                    <p className="text-sm text-muted-foreground sm:truncate">We scan 500 emails at a time. Click to scan for more.</p>
+                <CardContent className="p-4 flex items-center justify-between gap-4">
+                  <div className="flex-grow">
+                    <h3 className="font-semibold text-sm">Continue scanning your inbox</h3>
+                    <p className="text-xs text-muted-foreground">We scan 500 at a time. Click to scan for more.</p>
                   </div>
                   <Button
-                    className="w-full sm:w-auto flex-shrink-0"
+                    size="sm"
+                    className="flex-shrink-0"
                     onClick={() => handleFetchEmails({ pageToken: nextPageToken })}
                     disabled={isFetchingEmails || isCategorizing}
                   >
@@ -419,3 +420,4 @@ function DashboardSkeleton() {
     </div>
   );
 }
+
