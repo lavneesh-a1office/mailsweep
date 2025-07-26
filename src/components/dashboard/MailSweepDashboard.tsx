@@ -175,7 +175,7 @@ export default function MailSweepDashboard() {
       
       const categorized = emailsToScan.map((email, index) => ({
         ...email,
-        category: result.categories[index],
+        category: result.categories[index] || 'Other',
       }));
       setCategorizedEmails(categorized);
       
@@ -419,6 +419,7 @@ function DashboardSkeleton() {
     </div>
   );
 }
+
 
 
 
