@@ -69,6 +69,34 @@ export default function MailSweepDashboard() {
     }
   }, [router, setCategorizedEmails, toast]);
 
+  const filteredEmails = useMemo(() => {
+    const now = new Date();
+    
+    let filterDate = new Date();
+    if (ageFilter === '1y') {
+      filterDate.setFullYear(now.getFullYear() - 1);
+    } else if (ageFilter === '3y') {
+      filterDate.setFullYear(now.getFullYear() - 3);
+    } else if (ageFilter === 'all') {
+      filterDate = new Date(0); // Jan 1, 1970
+    }
+
+    const selectedCategoryNames = Object.entries(selectedCategories)
+      .filter(([, isSelected]) => isSelected)
+      .map(([category]) => category);
+
+    if (categorizedEmails.length === 0) {
+      return [];
+    }
+
+    return categorizedEmails.filter(email => {
+      const emailDate = new Date(email.date);
+      const isCategorySelected = selectedCategoryNames.includes(email.category);
+      const isOldEnough = emailDate < filterDate;
+      return isCategorySelected && isOldEnough;
+    });
+  }, [categorizedEmails, selectedCategories, ageFilter]);
+  
   const handleFetchEmails = useCallback(async (forceRescan = false) => {
     const user = auth.currentUser;
     if (!user) {
@@ -200,34 +228,6 @@ export default function MailSweepDashboard() {
     }
   };
 
-  const filteredEmails = useMemo(() => {
-    const now = new Date();
-    
-    let filterDate = new Date();
-    if (ageFilter === '1y') {
-      filterDate.setFullYear(now.getFullYear() - 1);
-    } else if (ageFilter === '3y') {
-      filterDate.setFullYear(now.getFullYear() - 3);
-    } else if (ageFilter === 'all') {
-      filterDate = new Date(0); // Jan 1, 1970
-    }
-
-    const selectedCategoryNames = Object.entries(selectedCategories)
-      .filter(([, isSelected]) => isSelected)
-      .map(([category]) => category);
-
-    if (categorizedEmails.length === 0) {
-      return [];
-    }
-
-    return categorizedEmails.filter(email => {
-      const emailDate = new Date(email.date);
-      const isCategorySelected = selectedCategoryNames.includes(email.category);
-      const isOldEnough = emailDate < filterDate;
-      return isCategorySelected && isOldEnough;
-    });
-  }, [categorizedEmails, selectedCategories, ageFilter]);
-  
   const categoryCounts = useMemo(() => {
     const initialCounts: Record<Category, number> = { 
         Promotions: 0, Social: 0, Updates: 0, Forums: 0, 
@@ -299,14 +299,14 @@ export default function MailSweepDashboard() {
   
   useEffect(() => {
       // This effect triggers the initial email fetch if no categorized emails are present.
-      if (categorizedEmails.length === 0) {
+      if (auth.currentUser && categorizedEmails.length === 0) {
         handleFetchEmails();
-      } else {
+      } else if(categorizedEmails.length > 0) {
         setIsLoading(false);
       }
   // This dependency array is intentionally sparse to only run once on mount if needed.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [auth.currentUser]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -322,7 +322,7 @@ export default function MailSweepDashboard() {
         <p className="text-muted-foreground mb-6 max-w-md">
             {`We'll scan for emails to categorize. Click below to start.`}
         </p>
-        <Button size="lg" onClick={() => handleFetchEmails(true)} disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
+        <Button size="lg" onClick={() => handleFetchEmails(true) } disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
           {isFetchingEmails ? 'Scanning...' : 'Scan My Inbox'}
         </Button>
         <Button variant="outline" onClick={handleLogout} className="mt-4">Logout</Button>
@@ -352,7 +352,7 @@ export default function MailSweepDashboard() {
           <p className="text-sm text-muted-foreground hidden sm:block">{auth.currentUser?.email}</p>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
           <Button variant="outline" onClick={() => handleFetchEmails(true)} disabled={isFetchingEmails || isCategorizing}>
-            {isFetchingEmails || isCategorizing ? 'Rescanning...': 'Rescan'}
+            {isFetchingEmails || isCategorizing ? 'Rescanning...' : 'Rescan'}
           </Button>
         </div>
       </header>
@@ -440,5 +440,9 @@ function DashboardSkeleton() {
     </div>
   );
 }
+
+    
+
+    
 
     
