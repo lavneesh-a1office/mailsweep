@@ -31,7 +31,13 @@ export interface CategorizedEmail extends Email {
   category: Category;
 }
 
-export default function MailSweepDashboard() {
+interface MailSweepDashboardProps {
+  rescanTrigger: number;
+  onRescanComplete: () => void;
+}
+
+
+export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: MailSweepDashboardProps) {
   const [emails, setEmails] = useState<Email[]>([]);
   const { categorizedEmails, setCategorizedEmails } = useCategorizedEmails();
   const [isLoading, setIsLoading] = useState(true);
@@ -119,6 +125,7 @@ export default function MailSweepDashboard() {
                 toast({ title: 'Success', description: 'Loaded cached scan results.' });
                 setIsFetchingEmails(false);
                 setIsLoading(false);
+                onRescanComplete();
                 return;
             }
         }
@@ -153,26 +160,29 @@ export default function MailSweepDashboard() {
     } finally {
         setIsFetchingEmails(false);
         setIsLoading(false);
+        onRescanComplete();
     }
-  }, [toast, router, handleLogout, setCategorizedEmails]);
+  }, [toast, router, handleLogout, setCategorizedEmails, onRescanComplete]);
 
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      if (user) {
-          if (categorizedEmails.length === 0) {
-            handleFetchEmails();
-          } else {
+    const isInitialLoad = categorizedEmails.length === 0;
+    const user = auth.currentUser;
+
+    if(user){
+        if (isInitialLoad && rescanTrigger === 0) {
+            handleFetchEmails(false);
+        } else if (rescanTrigger > 0) {
+            handleFetchEmails(true);
+        } else {
             setIsLoading(false);
-          }
-      } else {
-        setIsLoading(false);
+        }
+    } else {
         router.push('/');
-      }
-    });
-    return () => unsubscribe();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [rescanTrigger, auth.currentUser]);
+
 
   const handleStartScan = async (emailsToScan: Email[]) => {
     const user = auth.currentUser;
@@ -299,7 +309,6 @@ export default function MailSweepDashboard() {
         <Button size="lg" onClick={() => handleFetchEmails(true) } disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
           {isFetchingEmails ? 'Scanning...' : 'Scan My Inbox'}
         </Button>
-        <Button variant="outline" onClick={handleLogout} className="mt-4">Logout</Button>
       </div>
     );
   }
@@ -317,20 +326,6 @@ export default function MailSweepDashboard() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-        <div className="flex items-center gap-3 mb-4 md:mb-0">
-          <MailSweepLogo className="h-10 w-10 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground font-headline">MailSweep</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <p className="text-sm text-muted-foreground hidden sm:block">{auth.currentUser?.email}</p>
-          <Button variant="outline" onClick={handleLogout}>Logout</Button>
-          <Button variant="outline" onClick={() => handleFetchEmails(true)} disabled={isFetchingEmails || isCategorizing}>
-            {isFetchingEmails || isCategorizing ? 'Rescanning...' : 'Rescan'}
-          </Button>
-        </div>
-      </header>
-      
       <div className="space-y-8">
         <SummaryStats
             emailsScanned={totalEmailsCategorized}
@@ -389,16 +384,6 @@ export default function MailSweepDashboard() {
 function DashboardSkeleton() {
   return (
     <div className="container mx-auto py-8 px-4 animate-pulse">
-      <header className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-lg" />
-          <Skeleton className="h-8 w-48 rounded-md" />
-        </div>
-        <div className="flex items-center gap-4">
-            <Skeleton className="h-10 w-32 rounded-md" />
-            <Skeleton className="h-10 w-24 rounded-md" />
-        </div>
-      </header>
       <div className="space-y-8">
         <Skeleton className="h-24 w-full rounded-lg" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
