@@ -44,6 +44,26 @@ export default function MailSweepDashboard() {
   const { toast } = useToast();
   const router = useRouter();
 
+  const handleLogout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      sessionStorage.removeItem('gmail_access_token');
+      setCategorizedEmails([]);
+      setEmails([]);
+      toast({
+        title: 'Logout Successful',
+      });
+      router.push('/');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      toast({
+        title: 'Logout Failed',
+        description: 'There was an error logging out. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }, [router, setCategorizedEmails, toast]);
+
   const handleFetchEmails = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) {
@@ -85,7 +105,7 @@ export default function MailSweepDashboard() {
         setIsFetchingEmails(false);
         setIsLoading(false);
     }
-  }, [toast, router]);
+  }, [toast, router, handleLogout]);
 
   useEffect(() => {
     // onAuthStateChanged is the recommended way to get the current user
@@ -191,26 +211,6 @@ export default function MailSweepDashboard() {
       title: "Success!",
       description: `${filteredEmails.length.toLocaleString()} emails have been deleted.`,
     });
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      sessionStorage.removeItem('gmail_access_token');
-      setCategorizedEmails([]);
-      setEmails([]);
-      toast({
-        title: 'Logout Successful',
-      });
-      router.push('/');
-    } catch (error) {
-      console.error('Error during logout:', error);
-      toast({
-        title: 'Logout Failed',
-        description: 'There was an error logging out. Please try again.',
-        variant: 'destructive',
-      });
-    }
   };
 
   if (isLoading) {
