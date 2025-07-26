@@ -17,7 +17,7 @@ import type { Email } from '@/lib/types';
 import CategoryList from './CategoryList';
 import DeleteConfirmationDialog from './DeleteConfirmationDialog';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ScanSearch } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -37,7 +37,6 @@ interface MailSweepDashboardProps {
 
 
 export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: MailSweepDashboardProps) {
-  const [emails, setEmails] = useState<Email[]>([]);
   const { categorizedEmails, setCategorizedEmails } = useCategorizedEmails();
   const [isLoading, setIsLoading] = useState(true);
   const [isCategorizing, setIsCategorizing] = useState(false);
@@ -49,7 +48,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   });
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [isFetchingEmails, setIsFetchingEmails] = useState(false);
-  const [filteredEmailCount, setFilteredEmailCount] = useState(0);
+  const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -59,7 +58,6 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
       await signOut(auth);
       sessionStorage.removeItem('gmail_access_token');
       setCategorizedEmails([]);
-      setEmails([]);
       toast({
         title: 'Logout Successful',
       });
@@ -88,13 +86,9 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
       return selectedCategoryNames.includes(email.category);
     });
   }, [categorizedEmails, selectedCategories]);
-
-  useEffect(() => {
-    setFilteredEmailCount(filteredEmails.length);
-  }, [filteredEmails]);
-
   
-  const handleFetchEmails = useCallback(async (forceRescan = false) => {
+  const handleFetchEmails = useCallback(async (options: { forceRescan?: boolean, pageToken?: string }) => {
+    const { forceRescan = false, pageToken } = options;
     const user = auth.currentUser;
     if (!user) {
         toast({ title: 'Not authenticated', description: 'Please login to fetch emails.', variant: 'destructive' });
@@ -103,15 +97,18 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     }
 
     setIsFetchingEmails(true);
-    setIsLoading(true);
-
-    if (!forceRescan) {
+    if (!pageToken) {
+      setIsLoading(true);
+    }
+    
+    if (!forceRescan && !pageToken) {
         const userDocRef = doc(db, 'userScans', user.uid);
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
             const data = docSnap.data();
             if (data.categorizedEmails && data.categorizedEmails.length > 0) {
                 setCategorizedEmails(data.categorizedEmails.map((e: any) => ({...e, category: e.category || 'Other'})));
+                setNextPageToken(data.nextPageToken);
                 toast({ title: 'Success', description: 'Loaded cached scan results.' });
                 setIsFetchingEmails(false);
                 setIsLoading(false);
@@ -129,14 +126,15 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
              return;
         }
 
-        const { emails: fetchedEmails } = await fetchEmails({ accessToken });
-        setEmails(fetchedEmails);
+        const { emails: fetchedEmails, nextPageToken: newNextPageToken } = await fetchEmails({ accessToken, pageToken });
+        setNextPageToken(newNextPageToken);
+
         if (fetchedEmails.length > 0) {
             toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails to scan.` });
-            await handleStartScan(fetchedEmails);
+            await handleStartScan(fetchedEmails, !!pageToken);
             
         } else {
-            toast({ title: 'No Emails Found', description: `We couldn't find any emails in the last scan.` });
+            toast({ title: 'No More Emails', description: `We couldn't find any more emails to scan.` });
         }
         
     } catch (error) {
@@ -161,9 +159,9 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
 
     if(user){
         if (isInitialLoad && rescanTrigger === 0) {
-            handleFetchEmails(false);
+            handleFetchEmails({ forceRescan: false });
         } else if (rescanTrigger > 0) {
-            handleFetchEmails(true);
+            handleFetchEmails({ forceRescan: true });
         } else {
             setIsLoading(false);
         }
@@ -176,7 +174,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   }, [rescanTrigger, auth.currentUser, router]);
 
 
-  const handleStartScan = async (emailsToScan: Email[]) => {
+  const handleStartScan = async (emailsToScan: Email[], append: boolean) => {
     const user = auth.currentUser;
     if (!user || emailsToScan.length === 0) {
         toast({
@@ -200,18 +198,20 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
       clearInterval(progressInterval);
       setProgress(100);
       
-      const categorized = emailsToScan.map((email, index) => ({
+      const newCategorized = emailsToScan.map((email, index) => ({
         ...email,
         category: result.categories[index] || 'Other',
       }));
-      setCategorizedEmails(categorized);
+
+      const allCategorizedEmails = append ? [...categorizedEmails, ...newCategorized] : newCategorized;
+      setCategorizedEmails(allCategorizedEmails);
       
       const userDocRef = doc(db, 'userScans', user.uid);
-      await setDoc(userDocRef, { categorizedEmails: categorized, updatedAt: new Date() });
+      await setDoc(userDocRef, { categorizedEmails: allCategorizedEmails, updatedAt: new Date(), nextPageToken });
 
       toast({
           title: "Scan Complete!",
-          description: `Successfully categorized ${categorized.length} emails and saved results.`,
+          description: `Successfully categorized ${newCategorized.length} emails. Total: ${allCategorizedEmails.length}.`,
       });
 
     } catch (error) {
@@ -264,7 +264,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         setCategorizedEmails(remainingEmails);
 
         const userDocRef = doc(db, 'userScans', auth.currentUser.uid);
-        await setDoc(userDocRef, { categorizedEmails: remainingEmails, updatedAt: new Date() }, { merge: true });
+        await setDoc(userDocRef, { categorizedEmails: remainingEmails, updatedAt: new Date(), nextPageToken }, { merge: true });
 
         toast({
             title: "Success!",
@@ -285,6 +285,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   };
   
   const totalEmailsCategorized = categorizedEmails.length;
+  const filteredEmailCount = filteredEmails.length;
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -298,14 +299,14 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         <p className="text-muted-foreground mb-6 max-w-md">
             {`We'll scan for emails to categorize. Click below to start.`}
         </p>
-        <Button size="lg" onClick={() => handleFetchEmails(true) } disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
+        <Button size="lg" onClick={() => handleFetchEmails({ forceRescan: true }) } disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
           {isFetchingEmails ? 'Scanning...' : 'Scan My Inbox'}
         </Button>
       </div>
     );
   }
 
-  if (isCategorizing || isFetchingEmails) {
+  if ((isCategorizing || isFetchingEmails) && !nextPageToken) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4 animate-pulse" />
@@ -324,7 +325,17 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
             emailsToDelete={filteredEmailCount}
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-4">
+            {nextPageToken && (
+              <Button 
+                className="w-full"
+                onClick={() => handleFetchEmails({ pageToken: nextPageToken })}
+                disabled={isFetchingEmails || isCategorizing}
+              >
+                <ScanSearch className="mr-2 h-4 w-4" />
+                {isFetchingEmails ? 'Scanning...' : 'Scan More'}
+              </Button>
+            )}
             <CategoryList 
               categoryCounts={categoryCounts}
               selectedCategories={selectedCategories}

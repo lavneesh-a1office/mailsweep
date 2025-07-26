@@ -14,6 +14,7 @@ import type { Email } from '@/lib/types';
 
 const FetchEmailsInputSchema = z.object({
   accessToken: z.string().describe('The Google API access token.'),
+  pageToken: z.string().optional().describe('The page token for fetching subsequent pages of emails.'),
 });
 export type FetchEmailsInput = z.infer<typeof FetchEmailsInputSchema>;
 
@@ -27,6 +28,7 @@ const FetchEmailsOutputSchema = z.object({
       date: z.string(),
     })
   ).describe('A list of fetched emails.'),
+  nextPageToken: z.string().optional().describe('The token for the next page of results.'),
 });
 export type FetchEmailsOutput = z.infer<typeof FetchEmailsOutputSchema>;
 
@@ -69,9 +71,14 @@ const fetchEmailsFlow = ai.defineFlow(
     inputSchema: FetchEmailsInputSchema,
     outputSchema: FetchEmailsOutputSchema,
   },
-  async ({ accessToken }) => {
+  async ({ accessToken, pageToken }) => {
     
-    const listResponse = await fetch('https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=500', {
+    let url = 'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=500';
+    if (pageToken) {
+        url += `&pageToken=${pageToken}`;
+    }
+
+    const listResponse = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -80,15 +87,15 @@ const fetchEmailsFlow = ai.defineFlow(
         throw new Error('Failed to list emails from Gmail.');
     }
 
-    const { messages } = await listResponse.json();
+    const { messages, nextPageToken } = await listResponse.json();
     if (!messages) {
-        return { emails: [] };
+        return { emails: [], nextPageToken: undefined };
     }
 
     const emailPromises = messages.map((m: any) => getEmailDetails(m.id, accessToken));
     const emails = (await Promise.all(emailPromises)).filter(e => e !== null) as Email[];
 
-    return { emails };
+    return { emails, nextPageToken };
   }
 );
 
