@@ -15,7 +15,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { MailSweepLogo } from '@/components/icons';
 import type { Email } from '@/lib/types';
 import CategoryList from './CategoryList';
-import FilterControls from './FilterControls';
 import DeleteConfirmationDialog from './DeleteConfirmationDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2 } from 'lucide-react';
@@ -48,9 +47,9 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     Promotions: true, Social: true, Updates: true, Forums: true, 
     Purchases: false, Travel: false, Other: false
   });
-  const [ageFilter, setAgeFilter] = useState('1y');
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [isFetchingEmails, setIsFetchingEmails] = useState(false);
+  const [filteredEmailCount, setFilteredEmailCount] = useState(0);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -76,17 +75,6 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   }, [router, setCategorizedEmails, toast]);
 
   const filteredEmails = useMemo(() => {
-    const now = new Date();
-    
-    let filterDate = new Date();
-    if (ageFilter === '1y') {
-      filterDate.setFullYear(now.getFullYear() - 1);
-    } else if (ageFilter === '3y') {
-      filterDate.setFullYear(now.getFullYear() - 3);
-    } else if (ageFilter === 'all') {
-      filterDate = new Date(0); // Jan 1, 1970
-    }
-
     const selectedCategoryNames = Object.entries(selectedCategories)
       .filter(([, isSelected]) => isSelected)
       .map(([category]) => category);
@@ -96,13 +84,15 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     }
 
     return categorizedEmails.filter(email => {
-      if (!email || !email.date || !email.category) return false;
-      const emailDate = new Date(email.date);
-      const isCategorySelected = selectedCategoryNames.includes(email.category);
-      const isOldEnough = emailDate < filterDate;
-      return isCategorySelected && isOldEnough;
+      if (!email || !email.category) return false;
+      return selectedCategoryNames.includes(email.category);
     });
-  }, [categorizedEmails, selectedCategories, ageFilter]);
+  }, [categorizedEmails, selectedCategories]);
+
+  useEffect(() => {
+    setFilteredEmailCount(filteredEmails.length);
+  }, [filteredEmails]);
+
   
   const handleFetchEmails = useCallback(async (forceRescan = false) => {
     const user = auth.currentUser;
@@ -121,7 +111,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         if (docSnap.exists()) {
             const data = docSnap.data();
             if (data.categorizedEmails && data.categorizedEmails.length > 0) {
-                setCategorizedEmails(data.categorizedEmails);
+                setCategorizedEmails(data.categorizedEmails.map((e: any) => ({...e, category: e.category || 'Other'})));
                 toast({ title: 'Success', description: 'Loaded cached scan results.' });
                 setIsFetchingEmails(false);
                 setIsLoading(false);
@@ -178,10 +168,12 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
             setIsLoading(false);
         }
     } else {
+      if (router) {
         router.push('/');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rescanTrigger, auth.currentUser]);
+  }, [rescanTrigger, auth.currentUser, router]);
 
 
   const handleStartScan = async (emailsToScan: Email[]) => {
@@ -329,7 +321,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
       <div className="space-y-8">
         <SummaryStats
             emailsScanned={totalEmailsCategorized}
-            emailsToDelete={filteredEmails.length}
+            emailsToDelete={filteredEmailCount}
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1">
@@ -340,8 +332,6 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
             />
           </div>
           <div className="lg:col-span-2 space-y-8">
-            <FilterControls ageFilter={ageFilter} onAgeFilterChange={setAgeFilter} />
-            
             <Card className="shadow-lg bg-card">
               <CardHeader>
                 <CardTitle>Bulk Deletion Summary</CardTitle>
@@ -351,7 +341,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center text-2xl font-bold text-primary">
                     <span>Emails to delete:</span>
-                    <span>{filteredEmails.length.toLocaleString()}</span>
+                    <span>{filteredEmailCount.toLocaleString()}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     This action will move emails to trash in your Gmail account. This can be undone in Gmail.
@@ -359,11 +349,11 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
                   <Button 
                     size="lg" 
                     className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    disabled={filteredEmails.length === 0 || isDeleting}
+                    disabled={filteredEmailCount === 0 || isDeleting}
                     onClick={() => setIsConfirmationOpen(true)}
                   >
                     <Trash2 className="mr-2 h-5 w-5" />
-                    {isDeleting ? 'Deleting...' : `Delete ${filteredEmails.length.toLocaleString()} Emails`}
+                    {isDeleting ? 'Deleting...' : `Delete ${filteredEmailCount.toLocaleString()} Emails`}
                   </Button>
                 </div>
               </CardContent>
@@ -375,7 +365,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         isOpen={isConfirmationOpen}
         onOpenChange={setIsConfirmationOpen}
         onConfirm={handleDelete}
-        emailCount={filteredEmails.length}
+        emailCount={filteredEmailCount}
       />
     </div>
   );
