@@ -6,6 +6,7 @@ import type { CategorizeEmailsInput, CategorizeEmailsOutput } from '@/ai/flows/c
 import { categorizeEmails } from '@/ai/flows/categorize-emails';
 import { fetchEmails } from '@/ai/flows/fetch-emails';
 import { deleteEmails } from '@/ai/flows/delete-emails';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,7 @@ import FilterControls from './FilterControls';
 import DeleteConfirmationDialog from './DeleteConfirmationDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
@@ -66,11 +67,10 @@ export default function MailSweepDashboard() {
     }
   }, [router, setCategorizedEmails, toast]);
 
-  const handleFetchEmails = useCallback(async () => {
+  const handleFetchEmails = useCallback(async (forceRescan = false) => {
     const user = auth.currentUser;
     if (!user) {
         toast({ title: 'Not authenticated', description: 'Please login to fetch emails.', variant: 'destructive' });
-        // Redirect to login if not authenticated
         router.push('/');
         return;
     }
@@ -78,11 +78,29 @@ export default function MailSweepDashboard() {
     setIsFetchingEmails(true);
     setIsLoading(true);
 
+    // 1. Check Firestore first
+    if (!forceRescan) {
+        const userDocRef = doc(db, 'userScans', user.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.categorizedEmails && data.categorizedEmails.length > 0) {
+                setCategorizedEmails(data.categorizedEmails);
+                toast({ title: 'Success', description: 'Loaded cached scan results.' });
+                setIsFetchingEmails(false);
+                setIsLoading(false);
+                return; // We have data, no need to fetch from Gmail
+            }
+        }
+    }
+
+
+    // 2. If no data in Firestore or forcing rescan, fetch from Gmail
     try {
         const accessToken = sessionStorage.getItem('gmail_access_token');
         if (!accessToken) {
              toast({ title: 'Authentication Error', description: 'Access token not found. Please log in again to grant permission.', variant: 'destructive' });
-             await handleLogout(); // Log out the user if token is missing
+             await handleLogout();
              return;
         }
 
@@ -90,6 +108,9 @@ export default function MailSweepDashboard() {
         setEmails(fetchedEmails);
         if (fetchedEmails.length > 0) {
             toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails to scan.` });
+            if (forceRescan) {
+                await handleStartScan(fetchedEmails);
+            }
         } else {
             toast({ title: 'No Emails Found', description: `We couldn't find any emails in the last scan.` });
         }
@@ -101,34 +122,31 @@ export default function MailSweepDashboard() {
             description: 'Could not retrieve emails. Your session might have expired. Please log in again.', 
             variant: 'destructive' 
         });
-        // If there's an error (like expired token), log the user out
         await handleLogout();
     } finally {
         setIsFetchingEmails(false);
         setIsLoading(false);
     }
-  }, [toast, router, handleLogout]);
+  }, [toast, router, handleLogout, setCategorizedEmails]);
+
 
   useEffect(() => {
-    // onAuthStateChanged is the recommended way to get the current user
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
-        // If we have emails already, don't refetch
-        if (categorizedEmails.length === 0) {
-            handleFetchEmails();
-        } else {
-            setIsLoading(false);
-        }
+          handleFetchEmails();
       } else {
         setIsLoading(false);
         router.push('/');
       }
     });
     return () => unsubscribe();
-  }, [handleFetchEmails, router, categorizedEmails.length]);
+    // Intentionally not including handleFetchEmails to run only once on auth change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
-  const handleStartScan = async () => {
-    if (emails.length === 0) {
+  const handleStartScan = async (emailsToScan: Email[]) => {
+    const user = auth.currentUser;
+    if (!user || emailsToScan.length === 0) {
         toast({
             title: "No Emails to Scan",
             description: "We didn't find any emails in your inbox to scan.",
@@ -139,7 +157,7 @@ export default function MailSweepDashboard() {
     setIsCategorizing(true);
     setProgress(0);
 
-    const emailInput: CategorizeEmailsInput = { emails: emails.map(({ subject, sender, body }) => ({ subject, sender, body })) };
+    const emailInput: CategorizeEmailsInput = { emails: emailsToScan.map(({ subject, sender, body }) => ({ subject, sender, body })) };
 
     try {
       const progressInterval = setInterval(() => {
@@ -150,14 +168,19 @@ export default function MailSweepDashboard() {
       clearInterval(progressInterval);
       setProgress(100);
       
-      const categorized = emails.map((email, index) => ({
+      const categorized = emailsToScan.map((email, index) => ({
         ...email,
         category: result.categories[index],
       }));
       setCategorizedEmails(categorized);
+      
+      // Save to Firestore
+      const userDocRef = doc(db, 'userScans', user.uid);
+      await setDoc(userDocRef, { categorizedEmails: categorized, updatedAt: new Date() });
+
       toast({
           title: "Scan Complete!",
-          description: `Successfully categorized ${categorized.length} emails.`,
+          description: `Successfully categorized ${categorized.length} emails and saved results.`,
       });
 
     } catch (error) {
@@ -208,7 +231,7 @@ export default function MailSweepDashboard() {
 
   const handleDelete = async () => {
     setIsConfirmationOpen(false);
-    if (filteredEmails.length === 0) return;
+    if (filteredEmails.length === 0 || !auth.currentUser) return;
     setIsDeleting(true);
 
     const accessToken = sessionStorage.getItem('gmail_access_token');
@@ -227,6 +250,10 @@ export default function MailSweepDashboard() {
         const deletedIds = new Set(emailIds);
         const remainingEmails = categorizedEmails.filter(email => !deletedIds.has(email.id));
         setCategorizedEmails(remainingEmails);
+
+        // Update Firestore with the remaining emails
+        const userDocRef = doc(db, 'userScans', auth.currentUser.uid);
+        await setDoc(userDocRef, { categorizedEmails: remainingEmails, updatedAt: new Date() }, { merge: true });
 
         toast({
             title: "Success!",
@@ -258,10 +285,10 @@ export default function MailSweepDashboard() {
         <MailSweepLogo className="h-16 w-16 text-primary mb-4" />
         <h1 className="text-3xl font-bold font-headline mb-2">Ready to clean your inbox?</h1>
         <p className="text-muted-foreground mb-6 max-w-md">
-            {isFetchingEmails ? 'Fetching your emails...' : `We found ${emails.length.toLocaleString()} emails. Start the AI-powered scan to categorize them.`}
+            {`We found ${emails.length.toLocaleString()} emails. Start the AI-powered scan to categorize them.`}
         </p>
-        <Button size="lg" onClick={handleStartScan} disabled={isFetchingEmails || emails.length === 0} className="bg-accent text-accent-foreground hover:bg-accent/90">
-          {isFetchingEmails ? 'Fetching Emails...' : 'Scan My Inbox'}
+        <Button size="lg" onClick={() => handleStartScan(emails)} disabled={emails.length === 0} className="bg-accent text-accent-foreground hover:bg-accent/90">
+          Scan My Inbox
         </Button>
         <Button variant="outline" onClick={handleLogout} className="mt-4">Logout</Button>
       </div>
@@ -289,8 +316,8 @@ export default function MailSweepDashboard() {
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground hidden sm:block">{auth.currentUser?.email}</p>
           <Button variant="outline" onClick={handleLogout}>Logout</Button>
-          <Button variant="outline" onClick={handleFetchEmails} disabled={isFetchingEmails}>
-            {isFetchingEmails ? 'Rescanning...': 'Rescan'}
+          <Button variant="outline" onClick={() => handleFetchEmails(true)} disabled={isFetchingEmails || isCategorizing}>
+            {isFetchingEmails || isCategorizing ? 'Rescanning...': 'Rescan'}
           </Button>
         </div>
       </header>
