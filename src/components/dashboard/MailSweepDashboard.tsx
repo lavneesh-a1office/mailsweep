@@ -338,12 +338,12 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
             {nextPageToken && (
               <Card>
                 <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-center sm:text-left">
-                      <h3 className="text-base font-semibold">Continue scanning your inbox</h3>
-                      <p className="text-sm text-muted-foreground">We scan 500 emails at a time. Click to scan more.</p>
+                  <div className="text-center sm:text-left flex-grow">
+                    <h3 className="text-base font-semibold">Continue scanning your inbox</h3>
+                    <p className="text-sm text-muted-foreground sm:truncate">We scan 500 emails at a time. Click to scan for more.</p>
                   </div>
-                  <Button 
-                    className="w-full sm:w-auto"
+                  <Button
+                    className="w-full sm:w-auto flex-shrink-0"
                     onClick={() => handleFetchEmails({ pageToken: nextPageToken })}
                     disabled={isFetchingEmails || isCategorizing}
                   >
