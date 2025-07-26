@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScanLine, Trash, HardDrive, CircleHelp } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
@@ -49,26 +49,14 @@ export default function SummaryStats({ emailsScanned, emailsToDelete }: SummaryS
 
     return (
         <Card className="shadow-lg bg-card">
-            <CardHeader>
-                <CardTitle>Scan Summary</CardTitle>
-                <CardDescription>A quick overview of your inbox analysis.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex flex-col md:flex-row justify-around items-center text-center">
+            <CardContent className="p-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                     {stats.map((stat, index) => (
-                        <React.Fragment key={stat.title}>
-                            <div className="flex flex-col items-center p-4 w-full">
-                                <stat.icon className="h-6 w-6 text-muted-foreground mb-2" />
-                                <p className="text-2xl font-bold text-primary">{stat.value}</p>
-                                <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                            </div>
-                            {index < stats.length - 1 && (
-                                <Separator orientation="vertical" className="h-16 hidden md:block" />
-                            )}
-                             {index < stats.length - 1 && (
-                                <Separator orientation="horizontal" className="w-full my-2 md:hidden" />
-                            )}
-                        </React.Fragment>
+                        <div key={stat.title} className="flex flex-col items-center justify-center p-2 rounded-lg">
+                            <stat.icon className="h-5 w-5 text-muted-foreground mb-2" />
+                            <p className="text-lg font-bold text-primary">{stat.value}</p>
+                            <p className="text-xs font-medium text-muted-foreground">{stat.title}</p>
+                        </div>
                     ))}
                 </div>
             </CardContent>
