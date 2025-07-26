@@ -49,6 +49,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [isFetchingEmails, setIsFetchingEmails] = useState(false);
   const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
+  const [filteredEmailCount, setFilteredEmailCount] = useState(0);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -86,6 +87,10 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
       return selectedCategoryNames.includes(email.category);
     });
   }, [categorizedEmails, selectedCategories]);
+
+  useEffect(() => {
+    setFilteredEmailCount(filteredEmails.length);
+  }, [filteredEmails]);
   
   const handleFetchEmails = useCallback(async (options: { forceRescan?: boolean, pageToken?: string }) => {
     const { forceRescan = false, pageToken } = options;
@@ -99,6 +104,10 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     setIsFetchingEmails(true);
     if (!pageToken) {
       setIsLoading(true);
+      if (forceRescan) {
+        setCategorizedEmails([]);
+        setNextPageToken(undefined);
+      }
     }
     
     if (!forceRescan && !pageToken) {
@@ -127,11 +136,13 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         }
 
         const { emails: fetchedEmails, nextPageToken: newNextPageToken } = await fetchEmails({ accessToken, pageToken });
+        
+        const currentEmails = pageToken ? categorizedEmails : [];
         setNextPageToken(newNextPageToken);
 
         if (fetchedEmails.length > 0) {
             toast({ title: 'Success', description: `Found ${fetchedEmails.length} emails to scan.` });
-            await handleStartScan(fetchedEmails, !!pageToken);
+            await handleStartScan([...currentEmails, ...fetchedEmails], !!pageToken, newNextPageToken);
             
         } else {
             toast({ title: 'No More Emails', description: `We couldn't find any more emails to scan.` });
@@ -150,7 +161,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         setIsLoading(false);
         onRescanComplete();
     }
-  }, [toast, router, handleLogout, setCategorizedEmails, onRescanComplete]);
+  }, [toast, router, handleLogout, setCategorizedEmails, onRescanComplete, categorizedEmails]);
 
 
   useEffect(() => {
@@ -174,7 +185,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   }, [rescanTrigger, auth.currentUser, router]);
 
 
-  const handleStartScan = async (emailsToScan: Email[], append: boolean) => {
+  const handleStartScan = async (emailsToScan: Email[], append: boolean, finalNextPageToken: string | undefined) => {
     const user = auth.currentUser;
     if (!user || emailsToScan.length === 0) {
         toast({
@@ -203,15 +214,14 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
         category: result.categories[index] || 'Other',
       }));
 
-      const allCategorizedEmails = append ? [...categorizedEmails, ...newCategorized] : newCategorized;
-      setCategorizedEmails(allCategorizedEmails);
+      setCategorizedEmails(newCategorized);
       
       const userDocRef = doc(db, 'userScans', user.uid);
-      await setDoc(userDocRef, { categorizedEmails: allCategorizedEmails, updatedAt: new Date(), nextPageToken });
+      await setDoc(userDocRef, { categorizedEmails: newCategorized, updatedAt: new Date(), nextPageToken: finalNextPageToken });
 
       toast({
           title: "Scan Complete!",
-          description: `Successfully categorized ${newCategorized.length} emails. Total: ${allCategorizedEmails.length}.`,
+          description: `Successfully categorized ${emailsToScan.length} emails.`,
       });
 
     } catch (error) {
@@ -285,7 +295,6 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   };
   
   const totalEmailsCategorized = categorizedEmails.length;
-  const filteredEmailCount = filteredEmails.length;
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -306,7 +315,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     );
   }
 
-  if ((isCategorizing || isFetchingEmails) && !nextPageToken) {
+  if ((isCategorizing || isFetchingEmails) && categorizedEmails.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
         <MailSweepLogo className="h-16 w-16 text-primary mb-4 animate-pulse" />
@@ -324,8 +333,8 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
             emailsScanned={totalEmailsCategorized}
             emailsToDelete={filteredEmailCount}
         />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-3 space-y-4">
             {nextPageToken && (
               <Button 
                 className="w-full"
@@ -333,7 +342,7 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
                 disabled={isFetchingEmails || isCategorizing}
               >
                 <ScanSearch className="mr-2 h-4 w-4" />
-                {isFetchingEmails ? 'Scanning...' : 'Scan More'}
+                {isFetchingEmails || isCategorizing ? 'Scanning...' : 'Scan More'}
               </Button>
             )}
             <CategoryList 
@@ -342,33 +351,35 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
               onCategoryChange={setSelectedCategories}
             />
           </div>
-          <div className="lg:col-span-2 space-y-8">
-            <Card className="shadow-lg bg-card">
-              <CardHeader>
-                <CardTitle>Bulk Deletion Summary</CardTitle>
-                <CardDescription>Review the emails that will be deleted based on your selections.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center text-2xl font-bold text-primary">
-                    <span>Emails to delete:</span>
-                    <span>{filteredEmailCount.toLocaleString()}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    This action will move emails to trash in your Gmail account. This can be undone in Gmail.
-                  </p>
-                  <Button 
-                    size="lg" 
-                    className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    disabled={filteredEmailCount === 0 || isDeleting}
-                    onClick={() => setIsConfirmationOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-5 w-5" />
-                    {isDeleting ? 'Deleting...' : `Delete ${filteredEmailCount.toLocaleString()} Emails`}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="pb-24 md:pb-0 md:col-span-3">
+             {/* Sticky footer for mobile, regular card for desktop */}
+            <div className="fixed bottom-0 left-0 right-0 z-10 bg-background/95 p-4 backdrop-blur-sm border-t md:static md:bg-transparent md:p-0 md:border-none md:shadow-none">
+                <Card className="md:shadow-lg md:bg-card">
+                    <CardHeader className="hidden md:flex">
+                        <CardTitle>Bulk Deletion Summary</CardTitle>
+                        <CardDescription>Review the emails that will be deleted based on your selections.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0 md:p-6">
+                        <div className="flex md:flex-col items-center justify-between gap-4 md:space-y-4">
+                            <div className="flex md:w-full justify-between items-center text-lg md:text-2xl font-bold text-primary">
+                                <span className="md:hidden">To Delete:</span>
+                                <span className="hidden md:inline">Emails to delete:</span>
+                                <span>{filteredEmailCount.toLocaleString()}</span>
+                            </div>
+                            <Button
+                                size="lg"
+                                className="w-auto md:w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                disabled={filteredEmailCount === 0 || isDeleting}
+                                onClick={() => setIsConfirmationOpen(true)}
+                            >
+                                <Trash2 className="mr-2 h-5 w-5" />
+                                <span className="hidden sm:inline">{isDeleting ? 'Deleting...' : `Delete ${filteredEmailCount.toLocaleString()} Emails`}</span>
+                                <span className="sm:hidden">{isDeleting ? '...' : 'Delete'}</span>
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
           </div>
         </div>
       </div>
