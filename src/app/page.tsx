@@ -1,9 +1,8 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MailSweepLogo } from "@/components/icons";
 import { CheckCircle2 } from "lucide-react";
-import Link from "next/link";
 import Image from "next/image";
+import Login from "@/components/auth/Login";
 
 export default function Home() {
   return (
@@ -13,9 +12,7 @@ export default function Home() {
           <MailSweepLogo className="h-8 w-8 text-primary" />
           <h1 className="text-2xl font-bold text-foreground font-headline">MailSweep</h1>
         </div>
-        <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-          <Link href="/dashboard">Login with Google</Link>
-        </Button>
+        <Login />
       </header>
       <main className="flex-1 flex flex-col items-center p-4">
         <section className="text-center py-16 md:py-24">
@@ -26,11 +23,7 @@ export default function Home() {
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               MailSweep intelligently categorizes your emails, finds the old clutter, and helps you delete thousands of emails in just a few clicks.
             </p>
-            <Button asChild size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90">
-              <Link href="/dashboard">
-                Start Cleaning My Inbox
-              </Link>
-            </Button>
+            <Login />
           </div>
         </section>
         

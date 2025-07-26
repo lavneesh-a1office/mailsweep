@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -16,6 +17,9 @@ import FilterControls from './FilterControls';
 import DeleteConfirmationDialog from './DeleteConfirmationDialog';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2 } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 export type Category = CategorizeEmailsOutput['categories'][number];
 export interface CategorizedEmail extends Email {
@@ -36,6 +40,7 @@ export default function MailSweepDashboard() {
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     // Simulate fetching emails
@@ -123,6 +128,23 @@ export default function MailSweepDashboard() {
     });
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: 'Logout Successful',
+      });
+      router.push('/');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      toast({
+        title: 'Logout Failed',
+        description: 'There was an error logging out. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (isLoading) {
     return <DashboardSkeleton />;
   }
@@ -159,7 +181,8 @@ export default function MailSweepDashboard() {
           <h1 className="text-3xl font-bold text-foreground font-headline">MailSweep</h1>
         </div>
         <div className="flex items-center gap-4">
-          <p className="text-sm text-muted-foreground">{categorizedEmailsList.length.toLocaleString()} emails remaining</p>
+          <p className="text-sm text-muted-foreground hidden sm:block">{auth.currentUser?.email}</p>
+          <Button variant="outline" onClick={handleLogout}>Logout</Button>
           <Button variant="outline" onClick={handleStartScan}>Rescan</Button>
         </div>
       </header>
