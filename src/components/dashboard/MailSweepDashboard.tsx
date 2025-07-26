@@ -298,10 +298,10 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
-        <MailSweepLogo className="h-16 w-16 text-primary animate-pulse" />
-        <h1 className="text-3xl font-bold font-headline mb-2">Scanning your inbox...</h1>
-        <p className="text-muted-foreground mb-6 max-w-md">
+      <div className="flex flex-col items-center justify-center text-center p-4 py-16 bg-background">
+        <MailSweepLogo className="h-12 w-12 text-primary animate-pulse" />
+        <h1 className="text-xl font-bold font-headline mt-4 mb-1">Scanning your inbox...</h1>
+        <p className="text-muted-foreground max-w-sm">
             This may take a moment. We're looking for emails to categorize.
         </p>
       </div>
@@ -310,10 +310,10 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
   
   if (totalEmailsCategorized === 0 && !isCategorizing && !isFetchingEmails) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
-        <MailSweepLogo className="h-16 w-16 text-primary mb-4" />
-        <h1 className="text-3xl font-bold font-headline mb-2">Ready to clean your inbox?</h1>
-        <p className="text-muted-foreground mb-6 max-w-md">
+      <div className="flex flex-col items-center justify-center text-center p-4 py-16 bg-background">
+        <MailSweepLogo className="h-12 w-12 text-primary mb-4" />
+        <h1 className="text-xl font-bold font-headline mb-2">Ready to clean your inbox?</h1>
+        <p className="text-muted-foreground mb-6 max-w-sm">
             {`We'll scan for emails to categorize. Click below to start.`}
         </p>
         <Button size="lg" onClick={() => handleFetchEmails({ forceRescan: true }) } disabled={isFetchingEmails} className="bg-accent text-accent-foreground hover:bg-accent/90">
@@ -325,11 +325,11 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
 
   if ((isCategorizing || isFetchingEmails) && categorizedEmails.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 bg-background">
-        <MailSweepLogo className="h-16 w-16 text-primary mb-4 animate-pulse" />
-        <h1 className="text-3xl font-bold font-headline mb-2">{isFetchingEmails ? 'Fetching emails...' : 'Categorizing your emails...'}</h1>
-        <p className="text-muted-foreground mb-6">Our AI is working its magic. This may take a moment.</p>
-        <Progress value={isFetchingEmails ? undefined : progress} className="w-full max-w-md" />
+      <div className="flex flex-col items-center justify-center text-center p-4 py-16 bg-background">
+        <MailSweepLogo className="h-12 w-12 text-primary mb-4 animate-pulse" />
+        <h1 className="text-xl font-bold font-headline mt-4 mb-2">{isFetchingEmails ? 'Fetching emails...' : 'Categorizing your emails...'}</h1>
+        <p className="text-muted-foreground mb-6 max-w-sm">Our AI is working its magic. This may take a moment.</p>
+        <Progress value={isFetchingEmails ? undefined : progress} className="w-full max-w-sm" />
       </div>
     );
   }
@@ -409,3 +409,5 @@ export default function MailSweepDashboard({ rescanTrigger, onRescanComplete }: 
     </div>
   );
 }
+
+    
