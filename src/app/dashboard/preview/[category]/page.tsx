@@ -3,16 +3,19 @@
 
 import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
 import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import type { CategorizedEmail } from '@/components/dashboard/MailSweepDashboard';
+import EmailDetailDialog from './EmailDetailDialog';
 
 export default function CategoryPreviewPage() {
   const { categorizedEmails } = useCategorizedEmails();
   const params = useParams();
   const category = params.category as string;
+  const [selectedEmail, setSelectedEmail] = useState<CategorizedEmail | null>(null);
 
   const filteredEmails = useMemo(() => {
     if (!category) return [];
@@ -30,7 +33,7 @@ export default function CategoryPreviewPage() {
     <div className="container mx-auto py-8 px-4">
       <header className="flex items-center mb-8 gap-4">
         <Link href="/dashboard" passHref>
-          <Button variant="outline" size="icon" asChild>
+          <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
@@ -41,16 +44,17 @@ export default function CategoryPreviewPage() {
       </header>
       
       {filteredEmails.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredEmails.map(email => (
-            <Card key={email.id} className="bg-card">
-              <CardHeader>
-                <CardTitle className="text-lg">{email.subject}</CardTitle>
-                <CardDescription>From: {email.sender} | Date: {new Date(email.date).toLocaleDateString()}</CardDescription>
+            <Card 
+              key={email.id} 
+              className="bg-card hover:bg-accent/20 cursor-pointer transition-colors"
+              onClick={() => setSelectedEmail(email)}
+            >
+              <CardHeader className="p-4">
+                <CardTitle className="text-base truncate">{email.subject}</CardTitle>
+                <CardDescription className="truncate">From: {email.sender}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground truncate">{email.body}</p>
-              </CardContent>
             </Card>
           ))}
         </div>
@@ -63,6 +67,14 @@ export default function CategoryPreviewPage() {
             <Button variant="default" className="mt-4">Back to Dashboard</Button>
           </Link>
         </div>
+      )}
+
+      {selectedEmail && (
+        <EmailDetailDialog
+            isOpen={!!selectedEmail}
+            onOpenChange={(isOpen) => !isOpen && setSelectedEmail(null)}
+            email={selectedEmail}
+        />
       )}
     </div>
   );
