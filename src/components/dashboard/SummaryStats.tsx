@@ -1,8 +1,8 @@
-
 'use client';
-
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ScanLine, Trash, HardDrive, CircleHelp, Separator } from "lucide-react";
+import { ScanLine, Trash, HardDrive, CircleHelp } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 interface SummaryStatsProps {
     emailsScanned: number;
