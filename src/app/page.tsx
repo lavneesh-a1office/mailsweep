@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MailSweepLogo } from "@/components/icons";
 import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
+import Link from 'next/link';
 import Login from "@/components/auth/Login";
 
 export default function Home() {
@@ -93,8 +95,13 @@ export default function Home() {
           </div>
         </section>
       </main>
-      <footer className="text-center p-4 text-sm text-muted-foreground">
-        © {new Date().getFullYear()} MailSweep. All rights reserved.
+      <footer className="text-center p-4 text-sm text-muted-foreground border-t">
+        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+            <span>© {new Date().getFullYear()} MailSweep. All rights reserved.</span>
+            <Link href="https://blog.a1apps.co/privacy-policy-a1apps/" target="_blank" rel="noopener noreferrer" className="hover:underline">
+                Privacy Policy
+            </Link>
+        </div>
       </footer>
     </div>
   );

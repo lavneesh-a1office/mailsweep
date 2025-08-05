@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut, RotateCw, Scan, Trash2, User as UserIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCategorizedEmails } from '@/hooks/useCategorizedEmails';
+import Link from 'next/link';
 
 export default function DashboardLayout() {
   const router = useRouter();
@@ -139,12 +140,22 @@ export default function DashboardLayout() {
                 </Button>
             </div>
         </header>
-        <main className="min-h-screen bg-background">
-          <MailSweepDashboard 
-            rescanTrigger={rescanTrigger}
-            onRescanComplete={() => setIsRescanning(false)}
-          />
-        </main>
+        <div className="flex flex-col min-h-[calc(100vh-65px)]">
+          <main className="flex-grow">
+            <MailSweepDashboard 
+              rescanTrigger={rescanTrigger}
+              onRescanComplete={() => setIsRescanning(false)}
+            />
+          </main>
+          <footer className="text-center p-4 text-sm text-muted-foreground border-t">
+            <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+                <span>© {new Date().getFullYear()} MailSweep. All rights reserved.</span>
+                <Link href="https://blog.a1apps.co/privacy-policy-a1apps/" target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    Privacy Policy
+                </Link>
+            </div>
+          </footer>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
