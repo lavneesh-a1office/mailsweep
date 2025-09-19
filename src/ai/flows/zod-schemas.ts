@@ -49,6 +49,8 @@ const FetchEmailOutputSchema = z.object({
 });
 
 const FetchEmailsOutputSchema = z.object({
+  resultSizeEstimate: z.number(),
+  nextPageToken: z.string().optional(),
   messages: z.array(
     z.object({
       id: z.string(),
@@ -62,8 +64,6 @@ const FetchEmailsOutputSchema = z.object({
       labelIds: z.array(z.string()).optional(),
     })
   ),
-  nextPageToken: z.string(),
-  resultSizeEstimate: z.number(),
 });
 
 const OutputSchema = z.object({

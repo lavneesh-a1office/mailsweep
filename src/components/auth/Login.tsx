@@ -31,8 +31,6 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     provider.addScope("https://mail.google.com/");
-    provider.addScope("https://www.googleapis.com/auth/gmail.modify");
-    provider.addScope("https://www.googleapis.com/auth/gmail.readonly");
     try {
       const result = await signInWithPopup(auth, provider);
 

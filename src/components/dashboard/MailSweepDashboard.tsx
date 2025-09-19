@@ -85,8 +85,8 @@ export default function MailSweepDashboard({
       console.error("Error during logout:", error);
       toast({
         title: "Logout Failed",
-        description: "There was an error logging out. Please try again.",
         variant: "destructive",
+        description: "There was an error logging out. Please try again.",
       });
     }
   }, [router, setCategorizedEmails, toast]);
@@ -101,7 +101,9 @@ export default function MailSweepDashboard({
     }
 
     return categorizedEmails.filter((email) => {
-      if (!email?.category) return false;
+      if (!email?.category) {
+        return false;
+      }
       return selectedCategoryNames.includes(email.category);
     });
   }, [categorizedEmails, selectedCategories]);
@@ -109,6 +111,74 @@ export default function MailSweepDashboard({
   useEffect(() => {
     setFilteredEmailCount(filteredEmails.length);
   }, [filteredEmails]);
+
+  const handleStartScan = useCallback(
+    async (
+      emailsToScan: Email[],
+      append: boolean,
+      finalNextPageToken: string | undefined
+    ) => {
+      const user = auth.currentUser;
+      if (!user || emailsToScan.length === 0) {
+        toast({
+          title: "No Emails to Scan",
+          description: "We didn't find any emails in your inbox to scan.",
+          variant: "default",
+        });
+        return;
+      }
+      setIsCategorizing(true);
+      setProgress(0);
+
+      const emailInput: CategorizeEmailsInput = {
+        emails: emailsToScan.map(({ subject, sender, body }) => ({
+          subject,
+          sender,
+          body,
+        })),
+      };
+
+      try {
+        const progressInterval = setInterval(() => {
+          setProgress((prev) => (prev < 90 ? prev + 10 : prev));
+        }, 300);
+
+        const result = await categorizeEmails(emailInput);
+        clearInterval(progressInterval);
+        setProgress(100);
+
+        const newCategorized = emailsToScan.map((email, index) => ({
+          ...email,
+          category: result.categories[index] || "Other",
+        }));
+
+        setCategorizedEmails(newCategorized);
+
+        const userDocRef = doc(db, "userScans", user.uid);
+        await setDoc(userDocRef, {
+          updatedAt: new Date(),
+          categorizedEmails: newCategorized,
+          nextPageToken: finalNextPageToken ?? "",
+        });
+
+        toast({
+          title: "Scan Complete!",
+          description: `Successfully categorized ${emailsToScan.length} emails.`,
+        });
+      } catch (error) {
+        console.error("Categorization failed:", error);
+        toast({
+          title: "Categorization Failed",
+          description:
+            "There was an error categorizing your emails. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setTimeout(() => setIsCategorizing(false), 500);
+      }
+    },
+    [setCategorizedEmails, toast]
+  );
 
   const handleFetchEmails = useCallback(
     async (options: { forceRescan?: boolean; pageToken?: string }) => {
@@ -212,9 +282,10 @@ export default function MailSweepDashboard({
       toast,
       router,
       handleLogout,
-      setCategorizedEmails,
+      handleStartScan,
       onRescanComplete,
       categorizedEmails,
+      setCategorizedEmails,
     ]
   );
 
@@ -224,9 +295,13 @@ export default function MailSweepDashboard({
 
     if (user) {
       if (isInitialLoad && rescanTrigger === 0) {
-        handleFetchEmails({ forceRescan: false });
+        handleFetchEmails({ forceRescan: false }).catch((error) =>
+          console.error(error)
+        );
       } else if (rescanTrigger > 0) {
-        handleFetchEmails({ forceRescan: true });
+        handleFetchEmails({ forceRescan: true }).catch((error) =>
+          console.error(error)
+        );
       } else {
         setIsLoading(false);
       }
@@ -237,71 +312,6 @@ export default function MailSweepDashboard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rescanTrigger, auth.currentUser, router]);
-
-  const handleStartScan = async (
-    emailsToScan: Email[],
-    append: boolean,
-    finalNextPageToken: string | undefined
-  ) => {
-    const user = auth.currentUser;
-    if (!user || emailsToScan.length === 0) {
-      toast({
-        title: "No Emails to Scan",
-        description: "We didn't find any emails in your inbox to scan.",
-        variant: "default",
-      });
-      return;
-    }
-    setIsCategorizing(true);
-    setProgress(0);
-
-    const emailInput: CategorizeEmailsInput = {
-      emails: emailsToScan.map(({ subject, sender, body }) => ({
-        subject,
-        sender,
-        body,
-      })),
-    };
-
-    try {
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => (prev < 90 ? prev + 10 : prev));
-      }, 300);
-
-      const result = await categorizeEmails(emailInput);
-      clearInterval(progressInterval);
-      setProgress(100);
-
-      const newCategorized = emailsToScan.map((email, index) => ({
-        ...email,
-        category: result.categories[index] || "Other",
-      }));
-
-      setCategorizedEmails(newCategorized);
-
-      const userDocRef = doc(db, "userScans", user.uid);
-      await setDoc(userDocRef, {
-        categorizedEmails: newCategorized,
-        updatedAt: new Date(),
-        nextPageToken: finalNextPageToken,
-      });
-
-      toast({
-        title: "Scan Complete!",
-        description: `Successfully categorized ${emailsToScan.length} emails.`,
-      });
-    } catch (error) {
-      console.error("Categorization failed:", error);
-      toast({
-        title: "Categorization Failed",
-        description:
-          "There was an error categorizing your emails. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setTimeout(() => setIsCategorizing(false), 500);
-    }
-  };
 
   const categoryCounts = useMemo(() => {
     const initialCounts: Record<Category, number> = {
@@ -355,9 +365,9 @@ export default function MailSweepDashboard({
       await setDoc(
         userDocRef,
         {
-          categorizedEmails: remainingEmails,
           updatedAt: new Date(),
-          nextPageToken,
+          categorizedEmails: remainingEmails,
+          nextPageToken: nextPageToken ?? "",
         },
         { merge: true }
       );

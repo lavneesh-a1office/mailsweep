@@ -22,7 +22,7 @@ import {
   FetchEmailsOutputSchema,
 } from "@/ai/flows/zod-schemas";
 
-const limit = pLimit(60);
+const limit = pLimit(90);
 
 const getHeader = (payload: MessagePart, name: string) => {
   return payload.headers.find((header) => header.name === name)?.value ?? "";
