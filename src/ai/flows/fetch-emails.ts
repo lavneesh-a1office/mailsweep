@@ -8,38 +8,45 @@
  * - FetchEmailsOutput - The return type for the fetchEmails function.
  */
 
-import { z } from "genkit";
+import pLimit from "p-limit";
 
 import { ai } from "@/ai/genkit";
 import type { Email } from "@/lib/types";
+import {
+  Output,
+  MessagePart,
+  OutputSchema,
+  FetchEmailsInput,
+  FetchEmailOutputSchema,
+  FetchEmailsInputSchema,
+  FetchEmailsOutputSchema,
+} from "@/ai/flows/zod-schemas";
 
-const FetchEmailsInputSchema = z.object({
-  accessToken: z.string().describe("The Google API access token."),
-  pageToken: z
-    .string()
-    .optional()
-    .describe("The page token for fetching subsequent pages of emails."),
-});
-export type FetchEmailsInput = z.infer<typeof FetchEmailsInputSchema>;
+const limit = pLimit(60);
 
-const FetchEmailsOutputSchema = z.object({
-  emails: z
-    .array(
-      z.object({
-        id: z.string(),
-        subject: z.string(),
-        sender: z.string(),
-        body: z.string(),
-        date: z.string(),
-      })
-    )
-    .describe("A list of fetched emails."),
-  nextPageToken: z
-    .string()
-    .optional()
-    .describe("The token for the next page of results."),
-});
-export type FetchEmailsOutput = z.infer<typeof FetchEmailsOutputSchema>;
+const getHeader = (payload: MessagePart, name: string) => {
+  return payload.headers.find((header) => header.name === name)?.value ?? "";
+};
+
+const getBody = (payload: MessagePart): string => {
+  if (payload.parts && payload.parts.length > 0) {
+    const plainPart = payload.parts.find((p) => p.mimeType === "text/plain");
+    if (plainPart?.body?.data) {
+      return Buffer.from(plainPart.body.data, "base64").toString("utf-8");
+    }
+
+    const htmlPart = payload.parts.find((p) => p.mimeType === "text/html");
+    if (htmlPart?.body?.data) {
+      return Buffer.from(htmlPart.body.data, "base64").toString("utf-8");
+    }
+  }
+
+  if (payload.body?.data) {
+    return Buffer.from(payload.body.data, "base64").toString("utf-8");
+  }
+
+  return "";
+};
 
 async function getEmailDetails(
   messageId: string,
@@ -47,49 +54,39 @@ async function getEmailDetails(
 ): Promise<Email | null> {
   const response = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
+    { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   if (!response.ok) {
     console.error(`Failed to fetch email ${messageId}:`, await response.text());
     return null;
   }
-  const message = await response.json();
+  const responseData: unknown = await response.json();
 
-  const getHeader = (name: string) =>
-    message.payload.headers.find((h: any) => h.name === name)?.value ?? "";
-
-  let body = "";
-  if (message.payload.parts) {
-    const part = message.payload.parts.find(
-      (p: any) => p.mimeType === "text/plain"
-    );
-    if (part?.body.data) {
-      body = Buffer.from(part.body.data, "base64").toString("utf-8");
-    }
-  } else if (message.payload.body.data) {
-    body = Buffer.from(message.payload.body.data, "base64").toString("utf-8");
+  const parsedData = FetchEmailOutputSchema.safeParse(responseData);
+  if (parsedData.error) {
+    throw new Error(parsedData.error.message);
   }
 
+  const { id, payload } = parsedData.data;
+
   return {
-    id: message.id,
-    subject: getHeader("Subject"),
-    sender: getHeader("From"),
-    date: getHeader("Date"),
-    body: body.substring(0, 500), // Truncate for performance
+    id,
+    date: getHeader(payload, "Date"),
+    sender: getHeader(payload, "From"),
+    subject: getHeader(payload, "Subject"),
+    body: getBody(payload).substring(0, 500),
   };
 }
 
 const fetchEmailsFlow = ai.defineFlow(
   {
     name: "fetchEmailsFlow",
+    outputSchema: OutputSchema,
     inputSchema: FetchEmailsInputSchema,
-    outputSchema: FetchEmailsOutputSchema,
   },
   async ({ accessToken, pageToken }) => {
     let url =
-      "https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=500";
+      "https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=500&q=-in:trash";
     if (pageToken) {
       url += `&pageToken=${pageToken}`;
     }
@@ -97,30 +94,32 @@ const fetchEmailsFlow = ai.defineFlow(
     const listResponse = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-
     if (!listResponse.ok) {
       console.error("Failed to list emails:", await listResponse.text());
       throw new Error("Failed to list emails from Gmail.");
     }
+    const responseData: unknown = await listResponse.json();
 
-    const { messages, nextPageToken } = await listResponse.json();
+    const parsedData = FetchEmailsOutputSchema.safeParse(responseData);
+    if (parsedData.error) {
+      throw new Error(parsedData.error.message);
+    }
+
+    const { messages, nextPageToken } = parsedData.data;
     if (!messages) {
       return { emails: [], nextPageToken: undefined };
     }
 
-    const emailPromises = messages.map((m: any) =>
-      getEmailDetails(m.id, accessToken)
-    );
-    const emails = (await Promise.all(emailPromises)).filter(
-      (e) => e !== null
-    ) as Email[];
+    const emails = (
+      await Promise.all(
+        messages.map((m) => limit(() => getEmailDetails(m.id, accessToken)))
+      )
+    ).filter((e): e is Email => e !== null);
 
     return { emails, nextPageToken };
   }
 );
 
-export async function fetchEmails(
-  input: FetchEmailsInput
-): Promise<FetchEmailsOutput> {
+export async function fetchEmails(input: FetchEmailsInput): Promise<Output> {
   return fetchEmailsFlow(input);
 }
