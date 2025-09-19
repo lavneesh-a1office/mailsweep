@@ -25,19 +25,19 @@ const CategorizeEmailsInputSchema = z.object({
 });
 export type CategorizeEmailsInput = z.infer<typeof CategorizeEmailsInputSchema>;
 
+const allowedCategories = [
+  "Other",
+  "Forums",
+  "Social",
+  "Travel",
+  "Updates",
+  "Purchases",
+  "Promotions",
+] as const;
+
 const CategorizeEmailsOutputSchema = z.object({
   categories: z
-    .array(
-      z.enum([
-        "Other",
-        "Forums",
-        "Social",
-        "Travel",
-        "Updates",
-        "Purchases",
-        "Promotions",
-      ])
-    )
+    .array(z.enum(allowedCategories))
     .describe(
       "A list of categories for the emails, in the same order as the input emails."
     ),
@@ -45,6 +45,20 @@ const CategorizeEmailsOutputSchema = z.object({
 export type CategorizeEmailsOutput = z.infer<
   typeof CategorizeEmailsOutputSchema
 >;
+
+const sanitizeCategory = (
+  category: string
+): (typeof allowedCategories)[number] => {
+  const normalized = category.trim().toLowerCase();
+  if (normalized.startsWith("prom")) return "Promotions";
+  if (normalized.startsWith("updat")) return "Updates";
+  if (normalized.startsWith("purc")) return "Purchases";
+  if (normalized.startsWith("soci")) return "Social";
+  if (normalized.startsWith("trav")) return "Travel";
+  if (normalized.startsWith("foru")) return "Forums";
+
+  return "Other";
+};
 
 export async function categorizeEmails(
   input: CategorizeEmailsInput
@@ -77,6 +91,13 @@ const categorizeEmailsFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await prompt(input);
-    return output!;
+
+    if (!output) {
+      throw new Error("No output from prompt.");
+    }
+
+    const sanitized = output.categories.map(sanitizeCategory);
+
+    return { categories: sanitized };
   }
 );

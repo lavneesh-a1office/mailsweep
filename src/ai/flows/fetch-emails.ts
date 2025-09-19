@@ -112,7 +112,9 @@ const fetchEmailsFlow = ai.defineFlow(
 
     const emails = (
       await Promise.all(
-        messages.map((m) => limit(() => getEmailDetails(m.id, accessToken)))
+        messages.map((message) =>
+          limit(() => getEmailDetails(message.id, accessToken))
+        )
       )
     ).filter((e): e is Email => e !== null);
 
